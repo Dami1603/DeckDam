@@ -1,0 +1,54 @@
+name: Actualizar mazos
+
+# Cada 12 horas (y a mano desde la pestaña Actions) corre el scraper y sube data/decks.json a Vercel Blob.
+# La app en Vercel toma los datos nuevos sola, sin volver a publicar.
+on:
+  schedule:
+    - cron: '17 */12 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # caché del scraper (páginas descargadas, traducciones, sprites y últimos mazos) entre ejecuciones
+      - name: Restaurar datos
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: deckdam-data-${{ github.run_id }}
+          restore-keys: deckdam-data-
+
+      - name: Bajar la versión publicada (si no hay caché)
+        run: node scripts/blob.mjs download
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+
+      - name: Scraping
+        run: node scraper/index.js
+
+      - name: Subir a Vercel Blob
+        run: node scripts/blob.mjs upload
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+
+      - name: Guardar datos
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: deckdam-data-${{ github.run_id }}

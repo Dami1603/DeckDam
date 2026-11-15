@@ -10,11 +10,20 @@ import { fetchJpCard } from './jpcard.js';
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.join(ROOT, 'data', 'decks.json');
 const PORT = Number(process.env.PORT ?? 3000);
+// En Vercel no hay disco persistente ni procesos en segundo plano: los mazos se leen de Vercel Blob
+// (los sube GitHub Actions) y el programador de actualizaciones no se usa.
+const ON_VERCEL = Boolean(process.env.VERCEL);
+const REMOTE_DATA = ON_VERCEL || Boolean(process.env.DATA_URL);
+const REMOTE_TTL_MS = Number(process.env.DATA_TTL_SECONDS ?? 300) * 1000;
 
 let db = { updatedAt: null, sources: {}, decks: [], byId: new Map(), byKey: new Map(), byName: new Map(), cards: new Map(), jpPrints: new Map() };
 let loadedMtime = 0;
 
-async function loadData() {
+function loadData() {
+  return REMOTE_DATA ? loadRemote() : loadLocal();
+}
+
+async function loadLocal() {
   let s;
   try {
     s = await stat(DATA_FILE);
@@ -29,6 +38,42 @@ async function loadData() {
     console.error(`No se pudo leer ${DATA_FILE}: ${e.message}. Se mantienen los datos anteriores.`);
     return db;
   }
+  ingest(raw);
+  loadedMtime = s.mtimeMs;
+  return db;
+}
+
+// Datos remotos (Vercel Blob o DATA_URL): se vuelven a consultar cada REMOTE_TTL_MS con If-None-Match,
+// así sólo se descargan cuando GitHub Actions subió una versión nueva.
+const remote = { url: process.env.DATA_URL || null, etag: null, checkedAt: 0, pending: null };
+async function loadRemote() {
+  if (db.decks.length && Date.now() - remote.checkedAt < REMOTE_TTL_MS) return db;
+  remote.pending ??= (async () => {
+    try {
+      if (!remote.url) {
+        const { head } = await import('@vercel/blob');
+        remote.url = (await head(process.env.DATA_BLOB_PATH ?? 'decks.json')).url;
+      }
+      const res = await fetch(remote.url, { headers: remote.etag && db.decks.length ? { 'If-None-Match': remote.etag } : {} });
+      if (res.status !== 304) {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const raw = await res.json();
+        remote.etag = res.headers.get('etag');
+        ingest(raw);
+      }
+      remote.checkedAt = Date.now();
+    } catch (e) {
+      console.error(`No se pudieron leer los mazos remotos: ${e.message}. Se mantienen los datos anteriores.`);
+      remote.checkedAt = Date.now() - REMOTE_TTL_MS + 30_000; // reintentar en 30 s
+    } finally {
+      remote.pending = null;
+    }
+    return db;
+  })();
+  return remote.pending;
+}
+
+function ingest(raw) {
   const byId = new Map();
   const byKey = new Map(); // identidad de carta -> [{ deck, copies }]
   const byName = new Map(); // nombre normalizado -> Set(identidades)
@@ -67,9 +112,7 @@ async function loadData() {
   assignFamilies(raw.decks); // familias de arquetipos (ej. todas las variantes de Dragapult)
   for (const [key, info] of cards) info.decks = byKey.get(key).length;
   db = { updatedAt: raw.updatedAt, sources: raw.sources ?? {}, decks: raw.decks, byId, byKey, byName, cards, jpPrints };
-  loadedMtime = s.mtimeMs;
   console.log(`datos cargados: ${raw.decks.length} mazos, ${cards.size} cartas distintas`);
-  return db;
 }
 
 function coverOf(deck) {
@@ -137,10 +180,10 @@ app.get(['/', '/index.html'], async (req, res, next) => {
     next(e);
   }
 });
-app.get('/robots.txt', (req, res) => {
+app.get(['/robots.txt', '/api/robots.txt'], (req, res) => {
   res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${siteUrl(req)}/sitemap.xml\n`);
 });
-app.get('/sitemap.xml', (req, res) => {
+app.get(['/sitemap.xml', '/api/sitemap.xml'], (req, res) => {
   const lastmod = (db.updatedAt ?? new Date().toISOString()).slice(0, 10);
   res.type('application/xml').send(
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
@@ -386,8 +429,13 @@ function scraperStatus() {
   return { enabled, intervalHours, running, startedAt, lastRun, nextRun };
 }
 
-await loadData();
-app.listen(PORT, () => {
-  console.log(`DeckDam → http://localhost:${PORT}`);
-  scheduler = startScheduler({ root: ROOT, dataFile: DATA_FILE });
-});
+// En tu PC: servidor con actualización automática. En Vercel: sólo se exporta la app (la usa api/index.js).
+if (!ON_VERCEL) {
+  await loadData();
+  app.listen(PORT, () => {
+    console.log(`DeckDam → http://localhost:${PORT}`);
+    if (!REMOTE_DATA) scheduler = startScheduler({ root: ROOT, dataFile: DATA_FILE });
+  });
+}
+
+export default app;

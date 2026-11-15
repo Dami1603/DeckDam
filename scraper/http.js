@@ -3,10 +3,11 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const CACHE_DIR = path.join(ROOT, 'data', 'cache');
+export const CACHE_DIR = process.env.VERCEL ? path.join(os.tmpdir(), 'deckdam-cache') : path.join(ROOT, 'data', 'cache');
 const UA = 'Mozilla/5.0 (compatible; DeckDam/0.1; deck research)';
 const MIN_INTERVAL_MS = Number(process.env.SCRAPE_DELAY_MS ?? 400);
 

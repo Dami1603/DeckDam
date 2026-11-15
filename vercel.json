@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm install",
+  "buildCommand": "node scripts/build-static.mjs",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/robots.txt", "destination": "/api" },
+    { "source": "/sitemap.xml", "destination": "/api" }
+  ],
+  "functions": {
+    "api/index.js": { "maxDuration": 30 }
+  }
+}

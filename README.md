@@ -86,6 +86,24 @@ Este repositorio publica la **base** de DeckDam: servidor, scrapers, identidad d
 recursos compartidos. La interfaz (`public/index.html` y `public/styles.css`) y los datos descargados (`data/`) no se
 incluyen. Ver [LICENSE](LICENSE): todos los derechos reservados.
 
+## Despliegue gratis: Vercel + GitHub Actions
+
+- **Vercel** sirve la interfaz como estático (`dist/`, armado por `scripts/build-static.mjs`) y la API como una función
+  (`api/index.js`, la misma app de `server.js`). La función lee los mazos de **Vercel Blob** y revalida cada 5 minutos.
+- **GitHub Actions** (`.github/workflows/scrape.yml`) corre el scraper cada 12 horas y sube `data/decks.json` a Blob
+  con `scripts/blob.mjs`. La caché del scraper se guarda entre ejecuciones con `actions/cache`.
+- El frontend no está en GitHub, así que **se publica desde la PC** con la CLI de Vercel (`.vercelignore` define qué se
+  sube). No conectes el repositorio de GitHub al proyecto de Vercel: publicaría una versión sin interfaz.
+
+Pasos (una sola vez):
+1. `npx vercel` → iniciar sesión y crear el proyecto. Después, `npx vercel --prod` para publicar.
+2. En el panel de Vercel: **Storage → Create → Blob**, y conectarlo al proyecto (agrega `BLOB_READ_WRITE_TOKEN`).
+3. Subir los mazos actuales: `BLOB_READ_WRITE_TOKEN=... node scripts/blob.mjs upload`.
+4. En GitHub: **Settings → Secrets and variables → Actions** → secreto `BLOB_READ_WRITE_TOKEN` con el mismo token.
+5. Opcional: variable `SITE_URL` en Vercel con el dominio público (para la URL canónica y Open Graph).
+
+Para publicar cambios del frontend: `npx vercel --prod`. Los mazos se actualizan solos.
+
 ## Requisitos
 
 Node.js 18 o superior.

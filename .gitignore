@@ -14,3 +14,7 @@ public/styles.css
 .env
 .DS_Store
 Thumbs.db
+
+# Vercel
+dist/
+.vercel/
