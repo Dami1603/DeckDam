@@ -168,6 +168,7 @@ function archetypeStats(decks) {
 
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', true); // detrás del proxy de Vercel: req.protocol = https
 // URL pública del sitio (para canonical, Open Graph y sitemap). Sin SITE_URL se usa la del pedido.
 const siteUrl = (req) => (process.env.SITE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
 let indexTemplate = null;
