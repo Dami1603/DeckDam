@@ -5,19 +5,19 @@
       <stop offset="1" stop-color="#8a1631"/>
     </linearGradient>
   </defs>
-  <!-- carta de atrás -->
+  <!-- back card -->
   <g transform="rotate(-14 18 21)">
     <rect x="7.5" y="7" width="19" height="27" rx="3" fill="#5a0d20" stroke="#b0203f" stroke-width="1"/>
     <rect x="9.6" y="9.1" width="14.8" height="22.8" rx="1.8" fill="none" stroke="#e2587a" stroke-opacity=".5" stroke-width=".8"/>
   </g>
-  <!-- carta de adelante con la DD entrelazada (una D sobre la otra) -->
+  <!-- front card with the interlocked DD (one D over the other) -->
   <g transform="rotate(9 22 20)">
     <rect x="12.5" y="5.5" width="19" height="27" rx="3" fill="url(#ddf)" stroke="#24060d" stroke-width="1"/>
     <rect x="14.6" y="7.6" width="14.8" height="22.8" rx="1.8" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width=".8"/>
     <g fill-rule="evenodd" transform="translate(22 19) scale(0.8) translate(-21.65 -18.6)">
-      <!-- D de atrás -->
+      <!-- back D -->
       <path transform="translate(14.9 9.6)" fill="#fff6f8" d="M0 0H2.4A6 6 0 0 1 2.4 12H0Z M2.3 2.3H2.4A3.7 3.7 0 0 1 2.4 9.7H2.3Z"/>
-      <!-- D de adelante: el contorno del color de la carta la "recorta" sobre la otra -->
+      <!-- front D: the card-colored outline "cuts" it over the other one -->
       <path transform="translate(20 15.6)" fill="#fff6f8" stroke="#a81e3c" stroke-width="1.5" paint-order="stroke" d="M0 0H2.4A6 6 0 0 1 2.4 12H0Z M2.3 2.3H2.4A3.7 3.7 0 0 1 2.4 9.7H2.3Z"/>
     </g>
   </g>

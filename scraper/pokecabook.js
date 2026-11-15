@@ -1,11 +1,11 @@
-// Scraper de https://pokecabook.com (mazos del metajuego japonés)
-// 1) índices de arquetipos, en su orden: https://pokecabook.com/archives/1417 (meta principal,
-//    "環境デッキレシピまとめ") y https://pokecabook.com/archives/6132 (otros arquetipos, "その他")
-// 2) en cada artículo de arquetipo, las figuras con link a un código de mazo oficial (pokemon-card.com),
-//    sólo de la sección del formato vigente (ej. "30th CELEBRATION環境")
-// 3) cada código de mazo -> cartas (IDs oficiales JP) -> traducción al inglés
-// Además, la recopilación diaria de ganadores de Gym Battle (https://pokecabook.com/archives/27265), donde cada
-// mazo lleva arriba un subtítulo (h4) con su arquetipo: ahí aparecen primero los mazos con cartas nuevas.
+// Scraper for https://pokecabook.com (Japanese meta decks)
+// 1) archetype indexes, in order: https://pokecabook.com/archives/1417 (main meta,
+//    "環境デッキレシピまとめ") and https://pokecabook.com/archives/6132 (other archetypes, "その他")
+// 2) in each archetype article, the figures linking to an official deck code (pokemon-card.com),
+//    only from the current-format section (e.g. "30th CELEBRATION環境")
+// 3) each deck code -> cards (official JP IDs) -> English translation
+// Also the daily Gym Battle winners compilation (https://pokecabook.com/archives/27265), where each
+// deck has a subtitle (h4) with its archetype on top: decks with new cards show up there first.
 import * as cheerio from 'cheerio';
 import { getText, mapLimit } from './http.js';
 import { translateCard, saveTranslations } from './translate.js';
@@ -16,20 +16,20 @@ const DECK_RE = /pokemon-card\.com\/deck\/(?:confirm|result)\.html\/deckID\/([A-
 
 const SECTION_BY_FIELD = {
   deck_pke: 'pokemon',
-  deck_gds: 'trainer', // mercancías
+  deck_gds: 'trainer', // items
   deck_tool: 'trainer', // herramientas
-  deck_tech: 'trainer', // máquinas técnicas
+  deck_tech: 'trainer', // technical machines
   deck_sup: 'trainer', // partidarios
   deck_sta: 'trainer', // estadios
   deck_ajs: 'trainer', // ACE SPEC
   deck_ene: 'energy',
 };
 
-// Índices de arquetipos (ids de artículos), en orden: meta principal y luego "otros"
+// Archetype indexes (article ids), in order: main meta and then "others"
 const HUB_IDS = (process.env.POKECABOOK_HUBS ?? '1417,6132').split(',').map((s) => s.trim()).filter(Boolean);
 const HUB_URLS = HUB_IDS.map((id) => `${BASE}/archives/${id}`);
 
-/** Arquetipos de los índices de Pokecabook, en el orden en que aparecen (sin repetir). */
+/** Archetypes from the Pokecabook indexes, in the order they appear (no repeats). */
 async function getArticles(maxArticles) {
   const articles = [];
   for (const [i, url] of HUB_URLS.entries()) {
@@ -44,8 +44,8 @@ async function getArticles(maxArticles) {
       const href = $(a).attr('href');
       const id = href.match(/pokecabook\.com\/archives\/(\d+)/)?.[1];
       const name = $(a).text().replace(/\s+/g, ' ').trim();
-      // sólo enlaces con nombre de arquetipo (los banners sin texto son otras secciones del sitio);
-      // los índices mismos no son artículos de mazos
+      // only links with an archetype name (banners without text are other sections of the site);
+      // the indexes themselves are not deck articles
       if (!id || !name || HUB_IDS.includes(id) || articles.some((x) => x.id === id)) return;
       articles.push({ id, url: `${BASE}/archives/${id}`, title: name, archetypeJp: name, hub: HUB_IDS[i] });
     });
@@ -53,7 +53,7 @@ async function getArticles(maxArticles) {
   return articles.slice(0, maxArticles);
 }
 
-// Recopilaciones diarias (mazos variados, cada uno con su arquetipo en un h4)
+// Daily compilations (mixed decks, each with its archetype in an h4)
 const DAILY_IDS = (process.env.POKECABOOK_DAILY ?? '27265').split(',').map((s) => s.trim()).filter(Boolean);
 
 async function getDailyDecks(id) {
@@ -64,8 +64,8 @@ async function getDailyDecks(id) {
     $('meta[property="article:modified_time"]').attr('content') ?? html.match(/"dateModified":"([^"]+)"/)?.[1] ?? null;
   const refDate = published ? new Date(published) : new Date();
   const entries = [];
-  let section = null; // h2/h3: fecha del día ("11/14【土】ジムバトル優勝")
-  let name = null; // h4: arquetipo del mazo siguiente
+  let section = null; // h2/h3: date of the day ("11/14【土】ジムバトル優勝")
+  let name = null; // h4: archetype of the next deck
   $('.entry-content')
     .find('h2, h3, h4, figure')
     .each((_, el) => {
@@ -136,7 +136,7 @@ function dateFromCaption(caption, ref) {
   const month = Number(m[1]);
   const day = Number(m[2]);
   let year = ref.getFullYear();
-  if (month > ref.getMonth() + 1 + 1) year -= 1; // diciembre visto en enero, etc.
+  if (month > ref.getMonth() + 1 + 1) year -= 1; // December seen in January, etc.
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
@@ -195,15 +195,15 @@ async function getOfficialDeck(code) {
       });
     }
   }
-  if (!cards.length) throw new Error(`mazo vacío o inválido ${code}`);
+  if (!cards.length) throw new Error(`empty or invalid deck ${code}`);
   return cards;
 }
 
 const stripEx = (s) => s.replace(/\s+/g, '').replace(/ex$/i, '').replace(/^メガ/, '');
 
 /**
- * Traduce el nombre del arquetipo (ej. "ハンマードラパルト(ノココッチ)") usando las cartas del mazo.
- * matched=false cuando el título es un apodo sin Pokémon reconocible (se usa el Pokémon principal).
+ * Translates the archetype name (e.g. "ハンマードラパルト(ノココッチ)") using the deck's cards.
+ * matched=false when the title is a nickname with no recognizable Pokémon (the main Pokémon is used).
  */
 function translateArchetype(archetypeJp, cards) {
   const pokemon = cards.filter((c) => c.section === 'pokemon' && c.name);
@@ -211,8 +211,8 @@ function translateArchetype(archetypeJp, cards) {
   const matched = [];
   const compact = (s) => s.replace(/\s+/g, '');
   for (const token of tokens) {
-    // puntaje: coincidencia exacta > misma forma Mega > mismo "ex" > nombre más largo.
-    // (メガヤンマ es el nombre japonés de Yanmega, no una Mega: lo resuelve la coincidencia exacta)
+    // score: exact match > same Mega form > same "ex" > longer name.
+    // (メガヤンマ is the Japanese name of Yanmega, not a Mega: the exact match resolves it)
     const tokenMega = token.startsWith('メガ');
     const tokenEx = /ex$/i.test(token);
     let best = null;
@@ -247,10 +247,10 @@ const mode = (arr) => {
 };
 
 /**
- * Nombre único para todos los mazos de un artículo, o null para nombrar cada mazo por separado.
- * - Título con Pokémon reconocible en la mayoría de listas: el nombre más frecuente.
- * - Título de expansión ("30th CELEBRATION"): mazos variados, null.
- * - Apodo ("アビスアイ"): el Pokémon presente en casi todas las listas con más copias (prefiere ex/Mega).
+ * A single name for all decks of an article, or null to name each deck separately.
+ * - Title with a Pokémon recognized in most lists: the most frequent name.
+ * - Set title ("30th CELEBRATION"): mixed decks, null.
+ * - Nickname ("アビスアイ"): the Pokémon present in almost every list with the most copies (prefers ex/Mega).
  */
 function articleArchetype(archetypeJp, deckCards) {
   if (!deckCards.length) return null;
@@ -276,8 +276,8 @@ function articleArchetype(archetypeJp, deckCards) {
   return common.sort((a, b) => score(b) - score(a))[0].name;
 }
 
-/** Completa cartas sin traducir con la traducción de otra impresión del mismo nombre japonés. */
-// Cartas que Limitless no tiene en su base japonesa
+/** Fills untranslated cards with the translation of another print with the same Japanese name. */
+// Cards Limitless does not have in its Japanese database
 const MANUAL_TRANSLATIONS = [['スクランブルスイッチ', 'Scramble Switch']];
 
 export function fillMissingTranslations(decks) {
@@ -305,9 +305,9 @@ export async function scrapePokecabook({
   log = console.log,
 } = {}) {
   const articles = await getArticles(maxArticles);
-  log(`[pokecabook] ${articles.length} arquetipos en los índices (${HUB_URLS.join(', ')})`);
+  log(`[pokecabook] ${articles.length} archetypes in the indexes (${HUB_URLS.join(', ')})`);
 
-  // 1) mazos de cada artículo, con su sección de formato
+  // 1) decks of each article, with their format section
   const perArticle = new Map();
   for (const article of articles) {
     try {
@@ -317,17 +317,17 @@ export async function scrapePokecabook({
     }
   }
 
-  // 2) formato vigente = la primera sección con mazos más común entre los artículos (o POKECABOOK_ENV)
+  // 2) current format = the most common first section with decks across articles (or POKECABOOK_ENV)
   const firstEnvs = [...perArticle.values()].map((list) => list.find((e) => e.environment)?.environment).filter(Boolean);
   const envCount = new Map();
   for (const e of firstEnvs) envCount.set(e, (envCount.get(e) ?? 0) + 1);
   const currentEnv = process.env.POKECABOOK_ENV ?? [...envCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  log(`[pokecabook] formato vigente: ${currentEnv ?? '(sin secciones)'}`);
+  log(`[pokecabook] current format: ${currentEnv ?? '(no sections)'}`);
 
   const decks = [];
-  const seenCodes = new Set(); // un mismo mazo puede figurar en dos artículos (ej. Dragapult y Hammer Dragapult)
+  const seenCodes = new Set(); // the same deck can appear in two articles (e.g. Dragapult and Hammer Dragapult)
 
-  /** Código oficial -> cartas traducidas (o null si falla). */
+  /** Official code -> translated cards (or null on failure). */
   async function buildEntry(entry) {
     try {
       const raw = await getOfficialDeck(entry.code);
@@ -351,7 +351,7 @@ export async function scrapePokecabook({
       }
       return { entry, cards };
     } catch (e) {
-      log(`[pokecabook]  ✗ mazo ${entry.code}: ${e.message}`);
+      log(`[pokecabook]  ✗ deck ${entry.code}: ${e.message}`);
       return null;
     }
   }
@@ -368,7 +368,7 @@ export async function scrapePokecabook({
 
     const ok = built.filter(Boolean);
     const articleName = articleArchetype(article.archetypeJp, ok.map((b) => b.cards));
-    // ¿el título del artículo nombra un Pokémon del mazo? (si no, es un apodo: ver scraper/index.js)
+    // does the article title name a Pokémon in the deck? (if not, it is a nickname: see scraper/index.js)
     const titleHits = ok.filter((b) => translateArchetype(article.archetypeJp, b.cards).matched).length;
     const titleMatched = ok.length > 0 && titleHits >= ok.length / 2;
     for (const b of ok) {
@@ -396,16 +396,16 @@ export async function scrapePokecabook({
       });
     }
     await saveTranslations();
-    log(`[pokecabook] (${i + 1}/${articles.length}) ${article.archetypeJp}: ${built.filter(Boolean).length} mazos`);
+    log(`[pokecabook] (${i + 1}/${articles.length}) ${article.archetypeJp}: ${built.filter(Boolean).length} decks`);
   }
-  // Recopilaciones diarias de Gym Battle: cada mazo con su propio arquetipo (h4)
+  // Daily Gym Battle compilations: each deck with its own archetype (h4)
   const maxDaily = Number(process.env.POKECABOOK_DAILY_MAX ?? 80);
   for (const id of DAILY_IDS) {
     let daily;
     try {
       daily = await getDailyDecks(id);
     } catch (e) {
-      log(`[pokecabook]  ✗ recopilación ${id}: ${e.message}`);
+      log(`[pokecabook]  ✗ compilation ${id}: ${e.message}`);
       continue;
     }
     const entries = daily.entries.filter((e) => !seenCodes.has(e.code)).slice(0, maxDaily);
@@ -436,12 +436,12 @@ export async function scrapePokecabook({
       });
     }
     await saveTranslations();
-    log(`[pokecabook] recopilación diaria ${id}: ${built.length} mazos nuevos (de ${daily.entries.length})`);
+    log(`[pokecabook] daily compilation ${id}: ${built.length} new decks (of ${daily.entries.length})`);
   }
 
   await saveTranslations();
   const fixed = fillMissingTranslations(decks);
   const missing = new Set(decks.flatMap((d) => d.cards.filter((c) => !c.translated).map((c) => c.jpName)));
-  log(`[pokecabook] traducciones completadas por nombre: ${fixed}; sin traducir: ${missing.size}${missing.size ? ' (' + [...missing].join(', ') + ')' : ''}`);
+  log(`[pokecabook] translations completed by name: ${fixed}; untranslated: ${missing.size}${missing.size ? ' (' + [...missing].join(', ') + ')' : ''}`);
   return decks;
 }

@@ -1,7 +1,7 @@
-// Scraper de https://www.pokedata.ovh/standings (torneos oficiales Play! Pokémon con listas de casi todos los jugadores)
-// 1) índice de torneos TCG  2) fecha de cada torneo (página de Masters)
-// 3) JSON de standings de Masters: puesto, récord y lista de cada jugador -> top N
-// El JSON no trae nombre de arquetipo: se asigna después en scraper/classify.js.
+// Scraper for https://www.pokedata.ovh/standings (official Play! Pokémon tournaments with lists for almost every player)
+// 1) TCG tournament index  2) date of each tournament (Masters page)
+// 3) Masters standings JSON: placement, record and list of each player -> top N
+// The JSON has no archetype name: it is assigned later in scraper/classify.js.
 import * as cheerio from 'cheerio';
 import { getText } from './http.js';
 import { limitlessImage } from './limitless.js';
@@ -10,14 +10,14 @@ const BASE = 'https://www.pokedata.ovh/standings';
 
 const MONTHS = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
 
-/** "September 18-20, 2026" / "May 30-June 1, 2026" -> "2026-09-18" (primer día) */
+/** "September 18-20, 2026" / "May 30-June 1, 2026" -> "2026-09-18" (first day) */
 function parseEventDate(text) {
   const m = text.match(/([A-Z][a-z]+)\s+(\d{1,2})[^,]*,\s*(\d{4})/);
   if (!m || !MONTHS[m[1].toLowerCase()]) return null;
   return `${m[3]}-${String(MONTHS[m[1].toLowerCase()]).padStart(2, '0')}-${m[2].padStart(2, '0')}`;
 }
 
-/** Quita los sufijos de pokedata: "Hero's Cape - ACESPEC", "Psychic Energy - Basic", "Jet Energy - Special" */
+/** Strips pokedata suffixes: "Hero's Cape - ACESPEC", "Psychic Energy - Basic", "Jet Energy - Special" */
 const cleanName = (name) => name.replace(/\s+-\s+(ACESPEC|Basic|Special)$/i, '').trim();
 
 async function getEventIndex() {
@@ -26,11 +26,11 @@ async function getEventIndex() {
   const events = [];
   $('button[onclick]').each((_, b) => {
     const id = $(b).attr('onclick').match(/location\.href='(\d+)\/'/)?.[1];
-    // el botón trae "Nombre del torneo\n - September 18-20, 2026": sólo el nombre
+    // the button holds "Tournament name\n - September 18-20, 2026": just the name
     const name = $(b).text().split('\n')[0].replace(/\s+-\s*$/, '').trim();
     if (id && name && !events.some((e) => e.id === id)) events.push({ id, name });
   });
-  return events.sort((a, b) => Number(b.id) - Number(a.id)); // más recientes primero
+  return events.sort((a, b) => Number(b.id) - Number(a.id)); // newest first
 }
 
 async function getEventDate(id) {
@@ -63,7 +63,7 @@ function toCards(decklist) {
 const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] ?? 'th'}`;
 
 /**
- * @param {{since: string, top?: number, maxEvents?: number}} opts since = fecha ISO desde la que se toman torneos
+ * @param {{since: string, top?: number, maxEvents?: number}} opts since = ISO date from which tournaments are taken
  */
 export async function scrapePokedata({
   since,
@@ -79,9 +79,9 @@ export async function scrapePokedata({
     if (used >= maxEvents) break;
     const date = await getEventDate(ev.id).catch(() => null);
     if (!date) continue;
-    if (date < since) break; // el índice está ordenado: lo que sigue es más viejo
+    if (date < since) break; // the index is sorted: what follows is older
 
-    // los torneos recientes publican las listas días después: se revisan más seguido
+    // recent tournaments publish lists days later: they are checked more often
     const ageDays = (Date.now() - new Date(date)) / 86400_000;
     let players;
     try {
@@ -95,7 +95,7 @@ export async function scrapePokedata({
       .filter((p) => p.decklist && typeof p.decklist === 'object' && Object.keys(p.decklist).length)
       .sort((a, b) => a.placing - b.placing);
     if (!withList.length) {
-      log(`[pokedata]  · ${ev.name} (${date}): todavía sin listas publicadas`);
+      log(`[pokedata]  · ${ev.name} (${date}): no lists published yet`);
       continue;
     }
     used++;
@@ -105,7 +105,7 @@ export async function scrapePokedata({
         id: `pd-${ev.id}-${p.placing}`,
         source: 'pokedata',
         format: 'standard',
-        archetype: null, // se clasifica en scraper/classify.js
+        archetype: null, // classified in scraper/classify.js
         archetypeId: null,
         archetypeShare: null,
         icons: [],
@@ -119,7 +119,7 @@ export async function scrapePokedata({
         cards: toCards(p.decklist),
       });
     }
-    log(`[pokedata] ${ev.name} (${date}): ${Math.min(top, withList.length)} de ${withList.length} listas`);
+    log(`[pokedata] ${ev.name} (${date}): ${Math.min(top, withList.length)} of ${withList.length} lists`);
   }
   return decks;
 }

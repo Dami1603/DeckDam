@@ -10,8 +10,8 @@ import { fetchJpCard } from './jpcard.js';
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.join(ROOT, 'data', 'decks.json');
 const PORT = Number(process.env.PORT ?? 3000);
-// En Vercel no hay disco persistente ni procesos en segundo plano: los mazos se leen de Vercel Blob
-// (los sube GitHub Actions) y el programador de actualizaciones no se usa.
+// On Vercel there is no persistent disk nor background processes: decks are read from Vercel Blob
+// (uploaded by GitHub Actions) and the update scheduler is not used.
 const ON_VERCEL = Boolean(process.env.VERCEL);
 const REMOTE_DATA = ON_VERCEL || Boolean(process.env.DATA_URL);
 const REMOTE_TTL_MS = Number(process.env.DATA_TTL_SECONDS ?? 300) * 1000;
@@ -35,7 +35,7 @@ async function loadLocal() {
   try {
     raw = JSON.parse(await readFile(DATA_FILE, 'utf8'));
   } catch (e) {
-    console.error(`No se pudo leer ${DATA_FILE}: ${e.message}. Se mantienen los datos anteriores.`);
+    console.error(`Could not read ${DATA_FILE}: ${e.message}. Keeping the previous data.`);
     return db;
   }
   ingest(raw);
@@ -43,8 +43,8 @@ async function loadLocal() {
   return db;
 }
 
-// Datos remotos (Vercel Blob o DATA_URL): se vuelven a consultar cada REMOTE_TTL_MS con If-None-Match,
-// así sólo se descargan cuando GitHub Actions subió una versión nueva.
+// Remote data (Vercel Blob or DATA_URL): re-checked every REMOTE_TTL_MS with If-None-Match,
+// so it is only downloaded when GitHub Actions uploaded a new version.
 const remote = { url: process.env.DATA_URL || null, etag: null, checkedAt: 0, pending: null };
 async function loadRemote() {
   if (db.decks.length && Date.now() - remote.checkedAt < REMOTE_TTL_MS) return db;
@@ -63,8 +63,8 @@ async function loadRemote() {
       }
       remote.checkedAt = Date.now();
     } catch (e) {
-      console.error(`No se pudieron leer los mazos remotos: ${e.message}. Se mantienen los datos anteriores.`);
-      remote.checkedAt = Date.now() - REMOTE_TTL_MS + 30_000; // reintentar en 30 s
+      console.error(`Could not read the remote decks: ${e.message}. Keeping the previous data.`);
+      remote.checkedAt = Date.now() - REMOTE_TTL_MS + 30_000; // retry in 30 s
     } finally {
       remote.pending = null;
     }
@@ -75,10 +75,10 @@ async function loadRemote() {
 
 function ingest(raw) {
   const byId = new Map();
-  const byKey = new Map(); // identidad de carta -> [{ deck, copies }]
+  const byKey = new Map(); // card identity -> [{ deck, copies }]
   const byName = new Map(); // nombre normalizado -> Set(identidades)
-  const cards = new Map(); // identidad -> info para mostrar
-  const jpPrints = new Map(); // identidad -> impresión japonesa { set, number } (para la ficha de cartas solo de Japón)
+  const cards = new Map(); // identity -> display info
+  const jpPrints = new Map(); // identity -> Japanese print { set, number } (for Japan-only card sheets)
 
   for (const deck of raw.decks) {
     deck.archetypeKey = normName(deck.archetype);
@@ -109,10 +109,10 @@ function ingest(raw) {
       byKey.get(key).push({ deck, copies });
     }
   }
-  assignFamilies(raw.decks); // familias de arquetipos (ej. todas las variantes de Dragapult)
+  assignFamilies(raw.decks); // archetype families (e.g. every Dragapult variant)
   for (const [key, info] of cards) info.decks = byKey.get(key).length;
   db = { updatedAt: raw.updatedAt, sources: raw.sources ?? {}, decks: raw.decks, byId, byKey, byName, cards, jpPrints };
-  console.log(`datos cargados: ${raw.decks.length} mazos, ${cards.size} cartas distintas`);
+  console.log(`data loaded: ${raw.decks.length} decks, ${cards.size} distinct cards`);
 }
 
 function coverOf(deck) {
@@ -168,8 +168,8 @@ function archetypeStats(decks) {
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', true); // detrás del proxy de Vercel: req.protocol = https
-// URL pública del sitio (para canonical, Open Graph y sitemap). Sin SITE_URL se usa la del pedido.
+app.set('trust proxy', true); // behind the Vercel proxy: req.protocol = https
+// Public site URL (for canonical, Open Graph and sitemap). Without SITE_URL the request's one is used.
 const siteUrl = (req) => (process.env.SITE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
 let indexTemplate = null;
 app.get(['/', '/index.html'], async (req, res, next) => {
@@ -214,7 +214,7 @@ app.get('/api/meta', (_req, res) => {
   });
 });
 
-/** Filtro de fecha (YYYY-MM-DD, inclusive). Con filtro activo, los mazos sin fecha quedan afuera. */
+/** Date filter (YYYY-MM-DD, inclusive). With an active filter, decks without a date are left out. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 function filterByDate(list, from, to) {
   const f = ISO_DATE.test(from ?? '') ? from : null;
@@ -251,7 +251,7 @@ app.get('/api/decks', (req, res) => {
         d.cards.some((c) => normName(c.name).includes(nq)),
     );
   }
-  // listas por arquetipo dentro de lo filtrado (para ordenar por rareza y marcar mazos únicos)
+  // lists per archetype within the filtered set (to sort by rarity and flag unique decks)
   const perArch = new Map();
   for (const d of list) perArch.set(d.archetypeKey, (perArch.get(d.archetypeKey) ?? 0) + 1);
   const sort = String(req.query.sort ?? '');
@@ -260,7 +260,7 @@ app.get('/api/decks', (req, res) => {
     list = [...list].sort(
       (a, b) =>
         dir * (perArch.get(a.archetypeKey) - perArch.get(b.archetypeKey)) ||
-        a.archetypeKey.localeCompare(b.archetypeKey) || // variantes del mismo arquetipo juntas
+        a.archetypeKey.localeCompare(b.archetypeKey) || // variants of the same archetype together
         (b.date ?? '').localeCompare(a.date ?? ''),
     );
   }
@@ -272,26 +272,26 @@ app.get('/api/decks', (req, res) => {
 
 app.get('/api/decks/:id', (req, res) => {
   const deck = db.byId.get(req.params.id);
-  if (!deck) return res.status(404).json({ error: 'Mazo no encontrado' });
+  if (!deck) return res.status(404).json({ error: 'Deck not found' });
   res.json({ ...summary(deck), cards: deck.cards, environment: deck.environment ?? null, articleUrl: deck.articleUrl ?? null, tournamentUrl: deck.tournamentUrl ?? null, shop: deck.shop ?? null, preview: deck.preview ?? null });
 });
 
-// Sin ninguna copia con impresión en inglés (imagen tpci/EN) = carta que todavía sólo salió en Japón
+// No copy with an English print (tpci/EN image) = card only released in Japan so far
 const isJpOnly = (c) => Boolean(c.image) && !/\/tpci\//.test(c.image);
 const publicCard = (c) =>
   c && { key: c.key, name: c.name, section: c.section, attacks: c.attacks, abilities: c.abilities, image: c.image, decks: c.decks, jpOnly: isJpOnly(c) };
 
 /**
- * ¿En qué mazos/arquetipos aparece una carta?
- * key  = identidad exacta (public/cardkey.js), se puede repetir.
- * name = todas las versiones con ese nombre (sólo como respaldo).
+ * Which decks/archetypes does a card appear in?
+ * key  = exact identity (public/cardkey.js), can be repeated.
+ * name = every version with that name (fallback only).
  */
 app.get('/api/usage', (req, res) => {
   let keys = [].concat(req.query.key ?? []).map(String).filter(Boolean);
   const names = [].concat(req.query.name ?? []).map(String).filter(Boolean);
   for (const n of names) keys.push(...(db.byName.get(normName(n)) ?? [cardKey(n)]));
   keys = [...new Set(keys)];
-  if (!keys.length) return res.status(400).json({ error: 'Falta el parámetro key o name' });
+  if (!keys.length) return res.status(400).json({ error: 'Missing key or name parameter' });
 
   const hits = new Map(); // deckId -> { deck, copies }
   for (const k of keys)
@@ -333,7 +333,7 @@ app.get('/api/usage', (req, res) => {
     .sort((a, b) => (b.deck.date ?? '').localeCompare(a.deck.date ?? ''))
     .map(({ deck, copies }) => ({ ...summary(deck), copies }));
 
-  // otras versiones con el mismo nombre pero distinto texto (ej. otro "Moltres")
+  // other versions with the same name but different text (e.g. another "Moltres")
   const nameKeys = new Set(keys.map((k) => normName(k.split('|')[0])));
   const variants = [...nameKeys]
     .flatMap((nk) => [...(db.byName.get(nk) ?? [])])
@@ -341,7 +341,7 @@ app.get('/api/usage', (req, res) => {
     .map((k) => publicCard(db.cards.get(k)))
     .sort((a, b) => b.decks - a.decks);
 
-  // sin coincidencias: sugerir cartas con nombres parecidos
+  // no matches: suggest cards with similar names
   let suggestions = [];
   if (!hits.size && !variants.length) {
     const words = normName(keys[0].split('|')[0]).split(' ').filter((w) => w.length > 2 && !['ex', 'the'].includes(w));
@@ -365,16 +365,16 @@ app.get('/api/usage', (req, res) => {
   });
 });
 
-// ---- Cartas con las que se suele jugar ("compañeras")
-const PARTNER_STAPLE = Number(process.env.PARTNER_STAPLE ?? 0.45); // en ≥45% de TODAS las listas = staple genérica
-const PARTNER_MIN_RATE = Number(process.env.PARTNER_MIN_RATE ?? 0.4); // en ≥40% de las listas que usan la carta
-const PARTNER_MIN_LIFT = Number(process.env.PARTNER_MIN_LIFT ?? 1.5); // ≥1.5 veces más común que en el meta general
+// ---- Cards it is usually played with ("partners")
+const PARTNER_STAPLE = Number(process.env.PARTNER_STAPLE ?? 0.45); // in ≥45% of ALL lists = generic staple
+const PARTNER_MIN_RATE = Number(process.env.PARTNER_MIN_RATE ?? 0.4); // in ≥40% of the lists that play the card
+const PARTNER_MIN_LIFT = Number(process.env.PARTNER_MIN_LIFT ?? 1.5); // ≥1.5 times more common than in the overall meta
 const BASIC_ENERGY = /^(grass|fire|water|lightning|psychic|fighting|darkness|metal|fairy) energy$/;
 
 /**
- * Compañeras de una carta: las que aparecen en buena parte de sus listas y son bastante más comunes ahí que en
- * el meta en general. Se descartan las staples (Boss's Orders, Ultra Ball, Poké Pad, Fezandipiti ex…), las
- * energías básicas y las otras versiones de la misma carta. Orden: inclusión × log(afinidad).
+ * Partners of a card: those that appear in a good share of its lists and are much more common there than in
+ * the overall meta. Staples (Boss's Orders, Ultra Ball, Poké Pad, Fezandipiti ex…), basic Energy and other
+ * versions of the same card are excluded. Order: inclusion × log(lift).
  */
 function findPartners(keys, nameKeys, decks, limit = 6) {
   if (decks.length < 3) return [];
@@ -405,10 +405,10 @@ function findPartners(keys, nameKeys, decks, limit = 6) {
     .map((p) => ({ ...publicCard(p.info), rate: Math.round(p.rate * 100) / 100, base: Math.round(p.base * 100) / 100 }));
 }
 
-/** Ficha (traducida) de una carta que sólo salió en Japón, a partir de su impresión japonesa en los mazos. */
+/** (Translated) sheet of a card only released in Japan, from its Japanese print in the decks. */
 app.get('/api/jpcard', async (req, res) => {
   const print = db.jpPrints.get(String(req.query.key ?? ''));
-  if (!print) return res.status(404).json({ error: 'Sin impresión japonesa' });
+  if (!print) return res.status(404).json({ error: 'No Japanese print' });
   try {
     res.json(await fetchJpCard(print));
   } catch (e) {
@@ -416,12 +416,12 @@ app.get('/api/jpcard', async (req, res) => {
   }
 });
 
-/** Todas las cartas distintas presentes en mazos (ordenadas por cantidad de listas). */
+/** Every distinct card present in decks (sorted by number of lists). */
 app.get('/api/cards', (_req, res) => {
   res.json([...db.cards.values()].sort((a, b) => b.decks - a.decks).map(publicCard));
 });
 
-app.use('/api', (_req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Route not found' }));
 
 let scheduler = null;
 function scraperStatus() {
@@ -430,7 +430,7 @@ function scraperStatus() {
   return { enabled, intervalHours, running, startedAt, lastRun, nextRun };
 }
 
-// En tu PC: servidor con actualización automática. En Vercel: sólo se exporta la app (la usa api/index.js).
+// Locally: server with automatic updates. On Vercel: the app is only exported (used by api/index.js).
 if (!ON_VERCEL) {
   await loadData();
   app.listen(PORT, () => {

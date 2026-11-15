@@ -1,2 +1,2 @@
-// Función de Vercel: la misma app de Express que corre en local (server.js), sin app.listen ni programador.
+// Vercel function: the same Express app that runs locally (server.js), without app.listen or the scheduler.
 export { default } from '../server.js';

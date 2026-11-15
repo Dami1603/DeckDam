@@ -1,6 +1,6 @@
-// Sube o baja data/decks.json de Vercel Blob. Requiere BLOB_READ_WRITE_TOKEN.
-//   node scripts/blob.mjs upload     -> sube data/decks.json (reemplaza el anterior)
-//   node scripts/blob.mjs download   -> baja la versión publicada a data/decks.json (si no existe localmente)
+// Uploads or downloads data/decks.json from Vercel Blob. Requires BLOB_READ_WRITE_TOKEN.
+//   node scripts/blob.mjs upload     -> uploads data/decks.json (replaces the previous one)
+//   node scripts/blob.mjs download   -> downloads the published version to data/decks.json (if it does not exist locally)
 import { head, put } from '@vercel/blob';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -12,26 +12,26 @@ const FILE = path.join(ROOT, 'data', 'decks.json');
 const PATHNAME = process.env.DATA_BLOB_PATH ?? 'decks.json';
 
 if (!process.env.BLOB_READ_WRITE_TOKEN) {
-  console.error('Falta BLOB_READ_WRITE_TOKEN');
+  console.error('Missing BLOB_READ_WRITE_TOKEN');
   process.exit(1);
 }
 
 const cmd = process.argv[2];
 if (cmd === 'upload') {
   const body = await readFile(FILE);
-  JSON.parse(body.toString('utf8')); // no subir un archivo corrupto
+  JSON.parse(body.toString('utf8')); // never upload a corrupt file
   const res = await put(PATHNAME, body, {
     access: 'public',
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: 'application/json',
-    cacheControlMaxAge: 60, // la CDN de Blob refresca en ~1 minuto
+    cacheControlMaxAge: 60, // the Blob CDN refreshes in ~1 minute
     multipart: true,
   });
-  console.log(`✓ subido ${(body.length / 1e6).toFixed(1)} MB → ${res.url}`);
+  console.log(`✓ uploaded ${(body.length / 1e6).toFixed(1)} MB → ${res.url}`);
 } else if (cmd === 'download') {
   if (existsSync(FILE)) {
-    console.log('data/decks.json ya existe: no se descarga');
+    console.log('data/decks.json already exists: not downloading');
   } else {
     try {
       const { url } = await head(PATHNAME);
@@ -39,12 +39,12 @@ if (cmd === 'upload') {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       await mkdir(path.dirname(FILE), { recursive: true });
       await writeFile(FILE, Buffer.from(await r.arrayBuffer()));
-      console.log(`✓ bajada la versión publicada desde ${url}`);
+      console.log(`✓ downloaded the published version from ${url}`);
     } catch (e) {
-      console.log(`Sin versión publicada todavía (${e.message}): se hace un scraping completo`);
+      console.log(`No published version yet (${e.message}): doing a full scrape`);
     }
   }
 } else {
-  console.error('Uso: node scripts/blob.mjs upload|download');
+  console.error('Usage: node scripts/blob.mjs upload|download');
   process.exit(1);
 }

@@ -1,4 +1,4 @@
-// Habilidades y ataques de un Pokémon desde su ficha en Limitless (caché permanente).
+// Abilities and attacks of a Pokémon from its Limitless card page (permanent cache).
 import * as cheerio from 'cheerio';
 import { getText } from './http.js';
 
@@ -6,7 +6,7 @@ const memo = new Map();
 
 /**
  * @param {{set: string, number: string, lang?: 'en'|'jp'}} print
- * @returns {Promise<{attacks: string[], abilities: string[]}|null>} null si no se pudo leer
+ * @returns {Promise<{attacks: string[], abilities: string[]}|null>} null if it could not be read
  */
 export async function getMoves({ set, number, lang = 'en' }) {
   if (!set || !number) return null;
@@ -20,8 +20,8 @@ export async function getMoves({ set, number, lang = 'en' }) {
   const p = (async () => {
     try {
       const html = await getText(url, { ttlHours: Infinity });
-      // Impresión japonesa con versión internacional: se usan los ataques oficiales en inglés de esa versión
-      // (la traducción literal de la ficha japonesa puede diferir y partiría la identidad de la carta).
+      // Japanese print with an international version: the official English attacks of that version are used
+      // (the literal translation of the Japanese sheet may differ and would split the card identity).
       if (lang === 'jp') {
         const section = html.split('Int. Prints')[1]?.split('JP. Prints')[0] ?? '';
         const intl = [...section.matchAll(/href="\/cards\/en\/([A-Za-z0-9-]+)\/(\w+)"/g)].at(-1);
@@ -35,7 +35,7 @@ export async function getMoves({ set, number, lang = 'en' }) {
       const abilities = [];
       $('.card-text-ability-info').each((_, el) => {
         const t = $(el).text().replace(/\s+/g, ' ').trim();
-        // "Ability: Teal Dance", "Poké-Power: X", "Poké-Body: X" (se ignora la regla "Tera", sin ':')
+        // "Ability: Teal Dance", "Poké-Power: X", "Poké-Body: X" (the "Tera" rule, without ':', is ignored)
         const m = t.match(/^(?:Ability|Poké-Power|Poké-Body|Pokémon Power|Poke-Power|Poke-Body)\s*:\s*(.+)$/i);
         if (m) abilities.push(m[1].trim());
       });

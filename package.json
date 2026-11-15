@@ -2,7 +2,7 @@
   "name": "deckdam",
   "version": "0.1.0",
   "private": true,
-  "description": "Busca una carta de Pokémon TCG y descubre en qué mazos de Limitless y Pokecabook encaja.",
+  "description": "Search a Pokémon TCG card and find out which competitive decks it fits (Limitless, City League JP, Pokecabook, Pokedata).",
   "type": "module",
   "scripts": {
     "start": "node server.js",
@@ -20,5 +20,11 @@
     "@vercel/blob": "^2.9.0",
     "cheerio": "^1.2.0",
     "express": "^4.22.3"
-  }
+  },
+  "homepage": "https://deckdam.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dami1603/DeckDam.git"
+  },
+  "license": "UNLICENSED"
 }

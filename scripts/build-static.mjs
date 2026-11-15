@@ -1,5 +1,5 @@
-// Build de Vercel: copia public/ a dist/ (servido como estático por la CDN) y completa %SITE_URL% en index.html.
-// SITE_URL (opcional) o, si no está, el dominio de producción del proyecto en Vercel.
+// Vercel build: copies public/ to dist/ (served as static by the CDN) and fills %SITE_URL% in index.html.
+// SITE_URL (optional) or, if missing, the project's production domain on Vercel.
 import { cp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -10,7 +10,7 @@ const SRC = path.join(ROOT, 'public');
 const OUT = path.join(ROOT, 'dist');
 
 if (!existsSync(path.join(SRC, 'index.html'))) {
-  console.error('Falta public/index.html: publica desde tu PC con la CLI de Vercel (el frontend no está en GitHub).');
+  console.error('Missing public/index.html: deploy from your machine with the Vercel CLI (the frontend is not on GitHub).');
   process.exit(1);
 }
 

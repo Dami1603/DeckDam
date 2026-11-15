@@ -1,7 +1,7 @@
-// Scraper de https://limitlesstcg.com/tournaments/jp (City League de Japón, listas ya traducidas al inglés)
-// 1) índice de torneos (paginado) hasta cubrir los últimos N días
-// 2) en cada torneo, las listas del top N con puesto y jugador
-// 3) cada lista -> cartas (impresiones en inglés cuando existen)
+// Scraper for https://limitlesstcg.com/tournaments/jp (Japanese City League, lists already translated to English)
+// 1) tournament index (paginated) until covering the last N days
+// 2) in each tournament, the top N lists with placement and player
+// 3) each list -> cards (English prints when available)
 import * as cheerio from 'cheerio';
 import { getText, mapLimit } from './http.js';
 import { getArchetypes, getDecklist } from './limitless.js';
@@ -61,11 +61,11 @@ async function getTournamentTop(t, top) {
 
 const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] ?? 'th'}`;
 
-/** Nombre del arquetipo a partir de los íconos: el de Limitless si coinciden, si no, desde las cartas. */
+/** Archetype name from the icons: the Limitless one if they match, otherwise from the cards. */
 function nameFromIcons(icons, cards, archetypeByIcons) {
   const slugs = icons.map(slugOfIcon).filter(Boolean);
   const pokemon = cards.filter((c) => c.section === 'pokemon');
-  // nombre de Limitless sólo si su Pokémon principal está en el mazo (evita arquetipos con el mismo ícono)
+  // Limitless name only if its main Pokémon is in the deck (avoids archetypes sharing the same icon)
   const known = archetypeByIcons.get(iconKey(slugs));
   const inDeck = (name) =>
     pokemon.some((c) => {
@@ -84,7 +84,7 @@ function nameFromIcons(icons, cards, archetypeByIcons) {
     const best = cands.sort((a, b) => Number(/ ex$/.test(b.name)) - Number(/ ex$/.test(a.name)) || b.count - a.count)[0];
     return best?.name ?? base.replace(/(^|-)([a-z])/g, (_, s, ch) => (s ? ' ' : '') + ch.toUpperCase());
   });
-  return [...new Set(names)].join(' / ') || 'Otros';
+  return [...new Set(names)].join(' / ') || 'Other';
 }
 
 export async function scrapeLimitlessJp({
@@ -93,7 +93,7 @@ export async function scrapeLimitlessJp({
   maxPages = Number(process.env.LIMITLESS_JP_PAGES ?? 12),
   log = console.log,
 } = {}) {
-  // íconos -> nombre de arquetipo de Limitless (se usa la tabla completa, no sólo el top)
+  // icons -> Limitless archetype name (the full table is used, not just the top)
   const archetypeByIcons = new Map();
   const archetypeIcons = new Map();
   const current = (await getArchetypes()).slice(0, Number(process.env.LIMITLESS_ARCHETYPES ?? 30));
@@ -106,7 +106,7 @@ export async function scrapeLimitlessJp({
   }
 
   const tournaments = await getTournaments({ days, maxPages });
-  log(`[limitless-jp] ${tournaments.length} torneos (últimos ${days} días, top ${top})`);
+  log(`[limitless-jp] ${tournaments.length} tournaments (last ${days} days, top ${top})`);
   const decks = [];
 
   for (const [i, t] of tournaments.entries()) {
@@ -121,14 +121,14 @@ export async function scrapeLimitlessJp({
       try {
         return { e, list: await getDecklist(`jp/${e.listId}`) };
       } catch (err) {
-        log(`[limitless-jp]  ✗ lista ${e.listId}: ${err.message}`);
+        log(`[limitless-jp]  ✗ list ${e.listId}: ${err.message}`);
         return null;
       }
     });
     for (const r of lists.filter(Boolean)) {
       const archetype = nameFromIcons(r.e.icons, r.list.cards, archetypeByIcons);
       decks.push({
-        // la misma lista puede repetirse en varios torneos: el id incluye el torneo
+        // the same list can show up in several tournaments: the id includes the tournament
         id: `ljp-${t.id}-${r.e.listId}`,
         source: 'limitless-jp',
         format: 'japan',
@@ -147,11 +147,11 @@ export async function scrapeLimitlessJp({
         cards: r.list.cards,
       });
     }
-    if ((i + 1) % 10 === 0 || i === tournaments.length - 1) log(`[limitless-jp] (${i + 1}/${tournaments.length}) torneos procesados, ${decks.length} listas`);
+    if ((i + 1) % 10 === 0 || i === tournaments.length - 1) log(`[limitless-jp] (${i + 1}/${tournaments.length}) tournaments processed, ${decks.length} lists`);
   }
 
-  // Mismos íconos = mismo arquetipo: un solo nombre (el más frecuente), sin importar el orden
-  // de los íconos ni si se eligió la versión ex o la normal de una carta.
+  // Same icons = same archetype: a single name (the most frequent), regardless of icon order
+  // or whether the ex or regular version of a card was picked.
   const byIcons = new Map();
   for (const d of decks) {
     if (!byIcons.has(d.archetypeId)) byIcons.set(d.archetypeId, []);

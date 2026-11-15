@@ -1,6 +1,6 @@
-// Asigna arquetipo a listas que no lo traen (pokedata), comparándolas con los arquetipos ya conocidos.
-// Cada lista se representa por sus Pokémon (nombre -> copias, máx. 4) y se compara por similitud coseno
-// con el perfil promedio de cada arquetipo de Limitless (preferido) y de City League JP.
+// Assigns an archetype to lists that come without one (pokedata), comparing them with known archetypes.
+// Each list is represented by its Pokémon (name -> copies, max. 4) and compared by cosine similarity
+// with the average profile of each Limitless (preferred) and City League JP archetype.
 import { normName } from '../public/cardkey.js';
 
 const LABELED_SOURCES = ['limitless', 'limitless-jp'];
@@ -28,7 +28,7 @@ function cosine(a, b) {
   return na && nb ? dot / Math.sqrt(na * nb) : 0;
 }
 
-/** Perfiles promedio por arquetipo (mínimo 2 listas). */
+/** Average profiles per archetype (at least 2 lists). */
 export function buildProfiles(decks) {
   const groups = new Map();
   for (const d of decks) {
@@ -48,10 +48,10 @@ export function buildProfiles(decks) {
   return profiles;
 }
 
-/** Nombre de respaldo: el Pokémon ex/Mega con más copias (o el de más copias). */
+/** Fallback name: the ex/Mega Pokémon with the most copies (or the one with the most copies). */
 function fallbackName(deck) {
   const poke = deck.cards.filter((c) => c.section === 'pokemon').sort((a, b) => b.count - a.count);
-  return (poke.find((c) => / ex$|^Mega /.test(c.name)) ?? poke[0])?.name ?? 'Otros';
+  return (poke.find((c) => / ex$|^Mega /.test(c.name)) ?? poke[0])?.name ?? 'Other';
 }
 
 /**
@@ -64,7 +64,7 @@ export function classifyDeck(deck, profiles, threshold = Number(process.env.CLAS
     const s = cosine(v, p.vector);
     if (!best[p.source] || s > best[p.source].s) best[p.source] = { p, s };
   }
-  // se prefiere el nombre de Limitless internacional (mismo circuito de torneos)
+  // the international Limitless name is preferred (same tournament circuit)
   const pick = [best.limitless, best['limitless-jp']].find((b) => b && b.s >= threshold);
   if (pick) {
     return { archetype: pick.p.name, archetypeId: pick.p.archetypeId, icons: pick.p.icons, similarity: pick.s, matched: true };

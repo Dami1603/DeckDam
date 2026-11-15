@@ -1,14 +1,14 @@
-// DeckDam — frontend (vanilla JS, router por hash)
+// DeckDam — frontend (vanilla JS, hash router)
 import { normName, cardKey, tcgdexKey, nameOfKey } from './cardkey.js';
 import { t, getLang, setLang, locale, applyStatic } from './i18n.js';
 
 const TCGDEX = 'https://api.tcgdex.net/v2';
 
-// Expansiones legales en Standard que TCGdex todavía no marca como tales (sus cartas vienen con
-// legal.standard=false y sin marca de regulación). Quitar de la lista cuando TCGdex las actualice.
+// Standard-legal sets that TCGdex does not flag as such yet (their cards come with
+// legal.standard=false and no regulation mark). Remove from the list once TCGdex updates them.
 const STANDARD_EXTRA_SETS = ['me06']; // Delta Reign (DLR, 6/11/2026)
 
-/** ¿La carta es legal en Standard? (dato de TCGdex o expansión de la lista anterior) */
+/** Is the card Standard legal? (TCGdex data or a set in the list above) */
 const isStandardLegal = (card) => Boolean(card?.legal?.standard) || STANDARD_EXTRA_SETS.includes(card?.set?.id);
 const app = document.getElementById('app');
 const dialog = document.getElementById('deckDialog');
@@ -71,7 +71,7 @@ const imgTag = (src, alt, { fallback, cls = '' } = {}) =>
       }${cls ? ` class="${cls}"` : ''}>`
     : `<div class="placeholder">${esc(alt)}</div>`;
 
-// imágenes rotas -> fallback o placeholder
+// broken images -> fallback or placeholder
 document.addEventListener(
   'error',
   (e) => {
@@ -90,10 +90,10 @@ document.addEventListener(
   true,
 );
 
-/** Imagen de una carta de TCGdex; si TCGdex no la tiene, la de respaldo calculada en withFallbackImages(). */
+/** Image of a TCGdex card; if TCGdex has none, the fallback computed in withFallbackImages(). */
 const tcgImg = (card, q = 'low') => (card?.image ? `${card.image}/${q}.webp` : card?._img?.[q === 'high' ? 'high' : 'low'] ?? null);
 
-/** Código oficial del set (ej. "MEP", "SVP", "TWM"), desde el detalle del set en TCGdex (cacheado). */
+/** Official set code (e.g. "MEP", "SVP", "TWM"), from the set details in TCGdex (cached). */
 const setAbbrev = (setId) =>
   getJSON(`${TCGDEX}/en/sets/${encodeURIComponent(setId)}`)
     .then((s) => s.abbreviation?.official ?? null)
@@ -105,8 +105,8 @@ const limitlessCardImg = (abbr, localId, size) =>
     : null;
 
 /**
- * TCGdex no tiene imagen de algunas cartas (ej. todas las promos MEP). Para esas se usa la imagen de Limitless,
- * armada con el código oficial del set y el número de la carta. Agrega card._img = { low, high }.
+ * TCGdex has no image for some cards (e.g. every MEP promo). For those the Limitless image is used,
+ * built from the official set code and the card number. Adds card._img = { low, high }.
  */
 async function withFallbackImages(cards) {
   const missing = cards.filter((c) => c && !c.image && !c._img);
@@ -123,17 +123,17 @@ const backButton = () => `<button class="back" id="back">${t('back')}</button>`;
 const bindBack = () =>
   document.getElementById('back')?.addEventListener('click', () => (history.length > 1 ? history.back() : (location.hash = '#/')));
 
-// ---------------------------------------------------------------- datos compartidos
+// ---------------------------------------------------------------- shared data
 const state = {
   search: { q: '', lang: null, results: null },
-  used: null, // { list, byKey: Map(key -> carta), byName: Map(nombre normalizado -> [cartas]) }
+  used: null, // { list, byKey: Map(key -> card), byName: Map(normalized name -> [cards]) }
   meta: null,
 };
 
-/** Idioma de las cartas (TCGdex) = idioma de la interfaz. */
+/** Card language (TCGdex) = interface language. */
 const cardLangNow = () => getLang();
 
-/** Cartas que aparecen en mazos, por identidad exacta y por nombre. */
+/** Cards that appear in decks, by exact identity and by name. */
 async function loadUsedCards() {
   if (state.used) return state.used;
   let list = [];
@@ -151,7 +151,7 @@ async function loadUsedCards() {
   return state.used;
 }
 
-/** Sets de TCGdex en orden cronológico, sin Pokémon TCG Pocket (serie "tcgp"). */
+/** TCGdex sets in chronological order, without Pokémon TCG Pocket (series "tcgp"). */
 async function loadSets(lang) {
   try {
     const [sets, pocket] = await Promise.all([
@@ -167,7 +167,7 @@ async function loadSets(lang) {
 
 const isPocket = (card, sets) => Boolean(sets.get(setIdOf(card))?.pocket);
 
-/** Detalles de varias cartas de TCGdex con concurrencia limitada. */
+/** Details of several TCGdex cards with limited concurrency. */
 async function fetchDetails(lang, ids, limit = 6) {
   const out = new Map();
   let i = 0;
@@ -213,7 +213,7 @@ async function loadMeta() {
       }
       chip.title = lines.join('\n');
     }
-    // mientras se actualiza: indicador y consulta periódica hasta que termine
+    // while updating: indicator and periodic polling until it finishes
     clearTimeout(loadMeta.poll);
     if (m.scraper?.running) {
       chip.className = 'data-chip updating';
@@ -244,20 +244,20 @@ document.querySelectorAll('[data-ui-lang]').forEach((b) =>
     setLang(b.dataset.uiLang);
     syncLangSwitch();
     applyStatic();
-    state.search.results = null; // los nombres de las cartas cambian de idioma
+    state.search.results = null; // card names change language
     loadMeta();
-    // si se está viendo una carta por id, abrirla en el nuevo idioma
+    // if a card is being viewed by id, open it in the new language
     const { path } = parseHash();
-    const m = path.match(/^\/carta\/(en|es)\/(.+)$/);
+    const m = path.match(/^\/(?:card|carta)\/(en|es)\/(.+)$/);
     if (m) {
-      location.replace(`#/carta/${getLang()}/${m[2]}`);
+      location.replace(`#/card/${getLang()}/${m[2]}`);
       return;
     }
     router();
   }),
 );
 
-// ---------------------------------------------------------------- SEO: título y descripción por vista
+// ---------------------------------------------------------------- SEO: title and description per view
 function setMeta(title, description = t('seo.desc')) {
   document.title = title;
   document.querySelector('meta[name="description"]')?.setAttribute('content', description);
@@ -283,10 +283,10 @@ document.getElementById('themeToggle')?.addEventListener('click', () =>
 // ---------------------------------------------------------------- router
 const routes = [
   [/^\/?$/, viewSearch],
-  [/^\/carta\/(en|es)\/(.+)$/, (m, p, alive) => viewCard({ lang: m[1], id: decodeURIComponent(m[2]) }, p, alive)],
+  [/^\/(?:card|carta)\/(en|es)\/(.+)$/, (m, p, alive) => viewCard({ lang: m[1], id: decodeURIComponent(m[2]) }, p, alive)],
   [/^\/k\/(.+)$/, (m, p, alive) => viewCard({ key: decodeURIComponent(m[1]) }, p, alive)],
-  [/^\/nombre\/(.+)$/, (m) => redirectByName(decodeURIComponent(m[1]))],
-  [/^\/mazos$/, viewDecks],
+  [/^\/(?:name|nombre)\/(.+)$/, (m) => redirectByName(decodeURIComponent(m[1]))],
+  [/^\/(?:decks|mazos)$/, viewDecks],
 ];
 
 function parseHash() {
@@ -300,7 +300,7 @@ async function router() {
   const { path, params } = parseHash();
   const token = ++renderToken;
   document.querySelectorAll('[data-nav]').forEach((a) => {
-    const isDecks = path.startsWith('/mazos');
+    const isDecks = /^\/(decks|mazos)/.test(path);
     a.classList.toggle('active', a.dataset.nav === (isDecks ? 'decks' : 'search'));
   });
   if (dialog.open) dialog.close();
@@ -325,7 +325,7 @@ function setQuery(params) {
   history.replaceState(null, '', `#${path}${qs ? '?' + qs : ''}`);
 }
 
-// ---------------------------------------------------------------- vista: búsqueda
+// ---------------------------------------------------------------- view: search
 async function viewSearch(_m, params, alive) {
   const q = params.get('q') ?? state.search.q ?? '';
   setMeta(q.trim().length >= 2 ? t('seo.search', { q: q.trim() }) : t('seo.home'));
@@ -362,10 +362,10 @@ async function viewSearch(_m, params, alive) {
   if (!q) input.focus();
 }
 
-// ---------------------------------------------------------------- carrusel: cartas más jugadas
+// ---------------------------------------------------------------- carousel: most played cards
 let carouselTimer = null;
 
-/** Imagen más nítida de Limitless (_MD) con la original como respaldo. */
+/** Sharper Limitless image (_MD) with the original as fallback. */
 const sharper = (src) => (src && /_SM\.png$/.test(src) ? { src: src.replace(/_SM\.png$/, '_MD.png'), fallback: src } : { src, fallback: undefined });
 
 const CAROUSEL_TABS = [
@@ -432,7 +432,7 @@ async function renderTopCarousel(container, tab = state.carouselTab ?? 'all') {
   };
   container.querySelectorAll('.carousel-btn').forEach((b) => b.addEventListener('click', () => advance(Number(b.dataset.dir), 2)));
 
-  // avance automático: se pausa con el mouse encima, al enfocar o al tocar; respeta "reducir movimiento"
+  // auto-advance: pauses on hover, focus or touch; respects "reduce motion"
   let paused = false;
   const pause = () => (paused = true);
   const resume = () => (paused = false);
@@ -484,7 +484,7 @@ async function doSearch(rawQ, alive) {
     const [cards, sets, used] = await Promise.all([
       Promise.all([
         getJSON(`${TCGDEX}/${lang}/cards?name=${encodeURIComponent(q)}&legal.standard=true&pagination:itemsPerPage=150`),
-        // + cartas de expansiones legales que TCGdex aún no marca (ver STANDARD_EXTRA_SETS)
+        // + cards from legal sets that TCGdex does not flag yet (see STANDARD_EXTRA_SETS)
         ...STANDARD_EXTRA_SETS.map((setId) =>
           getJSON(`${TCGDEX}/${lang}/cards?name=${encodeURIComponent(q)}&set.id=${setId}`).catch(() => []),
         ),
@@ -506,8 +506,8 @@ async function doSearch(rawQ, alive) {
     await withFallbackImages(rows);
     if (!alive() || state.search.q !== q) return;
 
-    // Badge exacto: para las cartas cuyo nombre se juega, se piden sus ataques y se compara
-    // la identidad completa (un "Moltres" con otros ataques es otra carta).
+    // Exact badge: for cards whose name is played, their attacks are fetched and the full
+    // identity is compared (a "Moltres" with other attacks is a different card).
     if (lang === 'en') {
       const candidates = rows.filter((r) => used.byName.has(normName(r.name))).slice(0, 60);
       const details = await fetchDetails('en', candidates.map((r) => r.id));
@@ -525,7 +525,7 @@ async function doSearch(rawQ, alive) {
         Number(Boolean(b.image || b._img)) - Number(Boolean(a.image || a._img)) ||
         b.setOrder - a.setOrder,
     );
-    // cartas que todavía sólo salieron en Japón (están en mazos japoneses, no en TCGdex en inglés)
+    // cards only released in Japan so far (they are in Japanese decks, not in TCGdex in English)
     const nq = normName(q);
     const shownKeys = new Set(rows.map((r) => r.key).filter(Boolean));
     state.search.jp = used.list.filter((c) => c.jpOnly && normName(c.name).includes(nq) && !shownKeys.has(c.key)).slice(0, 24);
@@ -587,19 +587,19 @@ function renderResults(rows) {
     </div>
     ${jpHtml}`;
   el.querySelectorAll('.tcg-card[data-id]').forEach((b) =>
-    b.addEventListener('click', () => (location.hash = `#/carta/${lang}/${encodeURIComponent(b.dataset.id)}`)),
+    b.addEventListener('click', () => (location.hash = `#/card/${lang}/${encodeURIComponent(b.dataset.id)}`)),
   );
   el.querySelectorAll('.tcg-card[data-key]').forEach((b) => b.addEventListener('click', () => (location.hash = keyHash(b.dataset.key))));
 }
 
-// ---------------------------------------------------------------- vista: carta + uso en mazos
+// ---------------------------------------------------------------- view: card + deck usage
 async function redirectByName(name) {
   const used = await loadUsedCards();
   const key = used.byName.get(normName(name))?.[0]?.key ?? cardKey(name);
   location.replace(keyHash(key));
 }
 
-/** Busca en TCGdex la impresión más reciente (con imagen, sin Pocket) con la misma identidad. */
+/** Finds in TCGdex the most recent print (with image, no Pocket) with the same identity. */
 async function findPrint(name, key) {
   const [list, sets] = await Promise.all([
     getJSON(`${TCGDEX}/en/cards?name=${encodeURIComponent('eq:' + name)}`).catch(() => []),
@@ -655,9 +655,9 @@ async function viewCard({ lang, id, key }, _params, alive) {
   if (!id) {
     enCard = await findPrint(usage.card?.name ?? nameOfKey(key), key);
     card = enCard;
-    // sin impresión en inglés: ficha de la carta japonesa (traducida por Limitless)
+    // no English print: sheet of the Japanese card (translated by Limitless)
     if (!card) card = await getJSON(`/api/jpcard?key=${encodeURIComponent(key)}`).catch(() => null);
-    // en español: la misma impresión con sus textos en español (si TCGdex la tiene)
+    // in Spanish: the same print with its Spanish text (if TCGdex has it)
     if (enCard && getLang() !== 'en') {
       const localized = await getJSON(`${TCGDEX}/${getLang()}/cards/${encodeURIComponent(enCard.id)}`).catch(() => null);
       if (localized) {
@@ -684,7 +684,7 @@ function legalTag(card) {
   return `<span class="tag ${ok ? 'ok' : 'no'}">${ok ? t('legal.yes') : t('legal.no')}</span>`;
 }
 
-/** Precio de TCGplayer (USD) por versión, con link al producto. */
+/** TCGplayer price (USD) per variant, with a link to the product. */
 function renderPrice(card) {
   const tp = card?.pricing?.tcgplayer;
   if (!tp) return '';
@@ -788,7 +788,7 @@ function renderCardDetail({ card, enCard, cardLang, key, usage }) {
         .join('')}</div>`
     : '';
 
-  // cartas con las que se suele jugar (calculadas en el servidor, sin staples genéricas)
+  // cards it is usually played with (computed on the server, without generic staples)
   const partnersHtml = !usage.matches
     ? ''
     : usage.partners?.length
@@ -881,8 +881,8 @@ function renderCardDetail({ card, enCard, cardLang, key, usage }) {
   draw();
 }
 
-// ---------------------------------------------------------------- texto de la carta (habilidades y ataques)
-// Tipos de energía de TCGdex (en/es) -> símbolo y color
+// ---------------------------------------------------------------- card text (abilities and attacks)
+// TCGdex energy types (en/es) -> symbol and color
 const ENERGY = {
   grass: ['G', '#3f9a4a'], planta: ['G', '#3f9a4a'],
   fire: ['R', '#d9472b'], fuego: ['R', '#d9472b'],
@@ -898,12 +898,12 @@ const ENERGY = {
 };
 const BY_SYMBOL = Object.fromEntries(Object.values(ENERGY).map(([s, c]) => [s, c]));
 
-// Símbolos originales: "Pokemon SV - SymbolSheet" de aschefield (CC BY-NC-ND 3.0), usada sin modificar
-// como sprite (public/assets/sv-symbolsheet-aschefield.png). Posición de cada ícono de ataque (39×40 px).
+// Original symbols: "Pokemon SV - SymbolSheet" by aschefield (CC BY-NC-ND 3.0), used unmodified
+// as a sprite (public/assets/sv-symbolsheet-aschefield.png). Position of each attack icon (39×40 px).
 const SHEET_ICONS = { G: 389, R: 454, W: 519, L: 584, P: 649, F: 714, D: 779, M: 844, C: 909 };
 const SHEET_ICON_Y = 270;
 
-/** Ícono de energía. size = alto en px. Dragón: ícono propio (la hoja no lo trae). Hada: círculo de color. */
+/** Energy icon. size = height in px. Dragon: custom icon (not in the sheet). Fairy: colored circle. */
 function energyIcon(typeOrSymbol, size = 20) {
   const ty = String(typeOrSymbol);
   const [sym, color] = ENERGY[ty.toLowerCase()] ?? (BY_SYMBOL[ty] ? [ty, BY_SYMBOL[ty]] : ['?', '#666']);
@@ -916,22 +916,22 @@ function energyIcon(typeOrSymbol, size = 20) {
   return `<span class="sym" role="img" aria-label="${title}" title="${title}" style="--x:${x};--y:${SHEET_ICON_Y};--w:39;--h:40;--s:${(size / 40).toFixed(3)}"></span>`;
 }
 
-/** Etiqueta "Ability" original de la hoja (182×38 px). */
+/** Original "Ability" label from the sheet (182×38 px). */
 const abilityBadge = (height = 20) =>
   `<span class="sym sym-ability" role="img" aria-label="${esc(t('ct.ability'))}" title="${esc(t('ct.ability'))}" style="--x:389;--y:561;--w:182;--h:38;--s:${(height / 38).toFixed(3)}"></span>`;
 
-/** Efecto con símbolos de energía en línea: "{G}" -> ícono */
+/** Effect with inline energy symbols: "{G}" -> icon */
 const effectHtml = (text) =>
   esc(text ?? '')
-    // TCGdex marca el texto recordatorio con <em>…</em> (y a veces <i>/<b>): tras escapar todo,
-    // se reactivan sólo esas etiquetas de formato, sin atributos
+    // TCGdex marks reminder text with <em>…</em> (and sometimes <i>/<b>): after escaping everything,
+    // only those formatting tags are re-enabled, without attributes
     .replace(/&lt;(\/?)(em|i|b|strong)&gt;/gi, (_, close, tag) => `<${close}${tag.toLowerCase()}>`)
     .replace(/\{([GRWLPFDMNYC])\}/g, (_, s) => energyIcon(s, 16))
     .replace(/\n+/g, '<br>');
 
 function renderCardText(card, fallback) {
   if (!card) {
-    // sin ficha en TCGdex (carta japonesa): sólo los nombres conocidos por los mazos
+    // no TCGdex sheet (Japanese card): only the names known from the decks
     const names = [...(fallback?.abilities ?? []).map((n) => [t('ct.ability'), n]), ...(fallback?.attacks ?? []).map((n) => [t('ct.attack'), n])];
     if (!names.length) return '';
     return `<div class="ct">${names.map(([k, n]) => `<div class="ct-row"><span class="ct-badge">${esc(k)}</span> <b>${esc(n)}</b></div>`).join('')}</div>`;
@@ -970,7 +970,7 @@ function renderCardText(card, fallback) {
   return parts.length ? `<div class="ct">${parts.join('')}</div>` : '';
 }
 
-// ---------------------------------------------------------------- tiles de mazo
+// ---------------------------------------------------------------- deck tiles
 function deckTile(d, { rarity = false } = {}) {
   const rare =
     rarity && d.archetypeLists === 1
@@ -1003,7 +1003,7 @@ function bindDeckTiles(root, highlight = []) {
   root.querySelectorAll('[data-deck]').forEach((b) => b.addEventListener('click', () => openDeck(b.dataset.deck, highlight)));
 }
 
-// ---------------------------------------------------------------- diálogo de mazo
+// ---------------------------------------------------------------- deck dialog
 const SECTIONS = ['pokemon', 'trainer', 'energy'];
 
 async function openDeck(id, highlight = []) {
@@ -1091,7 +1091,7 @@ async function openDeck(id, highlight = []) {
   );
 }
 
-/** Formato de importación de PTCG Live (siempre en inglés: es lo que acepta el juego). */
+/** PTCG Live import format (always in English: it is what the game accepts). */
 function decklistText(d) {
   const label = { pokemon: 'Pokémon', trainer: 'Trainer', energy: 'Energy' };
   return SECTIONS.map((key) => {
@@ -1110,13 +1110,13 @@ function decklistText(d) {
 }
 
 dialog.addEventListener('click', (e) => {
-  if (e.target === dialog) dialog.close(); // clic en el backdrop
+  if (e.target === dialog) dialog.close(); // click on the backdrop
 });
 
-// ---------------------------------------------------------------- vista: galería
+// ---------------------------------------------------------------- view: gallery
 async function viewDecks(_m, params, alive) {
   setMeta(t('seo.gallery'));
-  if (!state.meta) await loadMeta(); // las fuentes disponibles definen los filtros
+  if (!state.meta) await loadMeta(); // the available sources define the filters
   if (!alive()) return;
   const f = {
     source: params.get('source') ?? '',
@@ -1127,7 +1127,7 @@ async function viewDecks(_m, params, alive) {
     to: params.get('to') ?? '',
     sort: params.get('sort') ?? '',
   };
-  // atajos de fecha: últimos N días hasta hoy; "custom" muestra los dos campos
+  // date shortcuts: last N days until today; "custom" shows both fields
   const isoDay = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
   const daysAgo = (n) => isoDay(new Date(Date.now() - n * 86400_000));
   const PRESETS = [['any', 0], ['7', 7], ['30', 30], ['90', 90]];
@@ -1217,7 +1217,7 @@ async function viewDecks(_m, params, alive) {
     const strip = document.getElementById('archStrip');
     const variantStrip = document.getElementById('variantStrip');
 
-    // familias: arquetipos agrupados por su Pokémon principal (ej. todas las variantes de Dragapult)
+    // families: archetypes grouped by their main Pokémon (e.g. every Dragapult variant)
     const families = new Map();
     for (const a of list) {
       const key = a.familyKey ?? a.key;
@@ -1232,7 +1232,7 @@ async function viewDecks(_m, params, alive) {
     }
     const famList = [...families.values()].sort((x, y) => (f.sort === 'rare' ? x.decks - y.decks : y.decks - x.decks));
 
-    // un arquetipo elegido (por URL) implica su familia; filtros sin listas en el rango se quitan
+    // a chosen archetype (from the URL) implies its family; filters with no lists in the range are dropped
     if (f.arch && !f.family) f.family = list.find((a) => a.key === f.arch)?.familyKey ?? '';
     if (f.family && !families.has(f.family)) f.family = '';
     if (f.arch && !families.get(f.family)?.archetypes.some((a) => a.key === f.arch)) f.arch = '';
@@ -1307,7 +1307,7 @@ async function viewDecks(_m, params, alive) {
       document.getElementById('dateRange').hidden = datePreset !== 'custom';
       if (datePreset === 'custom') {
         document.getElementById('dFrom').focus();
-        return; // se aplica al elegir las fechas
+        return; // applied when the dates are picked
       }
       const n = PRESETS.find(([id]) => id === datePreset)?.[1] ?? 0;
       f.from = n ? daysAgo(n) : '';
@@ -1349,7 +1349,7 @@ async function viewDecks(_m, params, alive) {
 }
 
 // ---------------------------------------------------------------- inicio
-// ?lang=es / ?lang=en en la URL elige el idioma (útil para compartir links)
+// ?lang=es / ?lang=en in the URL picks the language (handy for sharing links)
 const urlLang = new URLSearchParams(location.search).get('lang');
 if (urlLang) setLang(urlLang);
 applyStatic();

@@ -1,8 +1,8 @@
 // Uso:
 //   npm run scrape                          -> fuentes activas (Limitless + Limitless JP + Pokecabook + Pokedata)
-//   npm run scrape -- --only=limitless-jp   -> sólo una fuente (las demás activas se conservan)
+//   npm run scrape -- --only=limitless-jp   -> a single source (the other active ones are kept)
 //   SOURCES=limitless,limitless-jp npm run scrape   -> elegir fuentes activas
-// Las fuentes que no están activas se quitan de data/decks.json.
+// Sources that are not active are removed from data/decks.json.
 // Variables opcionales: LIMITLESS_ARCHETYPES, LIMITLESS_LISTS, LIMITLESS_JP_DAYS, LIMITLESS_JP_TOP, POKEDATA_TOP, POKEDATA_SINCE,
 //   POKECABOOK_ARTICLES, POKECABOOK_DECKS, SCRAPE_DELAY_MS
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
@@ -25,7 +25,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'data', 'decks.json');
 const LOCK = path.join(ROOT, 'data', '.scrape.lock');
 
-// Un solo scraping a la vez (manual o lanzado por el servidor). Código de salida 2 = ya había uno en curso.
+// One scrape at a time (manual or launched by the server). Exit code 2 = one was already running.
 const isAlive = (pid) => {
   try {
     process.kill(pid, 0);
@@ -37,7 +37,7 @@ const isAlive = (pid) => {
 try {
   const pid = Number(await readFile(LOCK, 'utf8'));
   if (pid && pid !== process.pid && isAlive(pid)) {
-    console.error(`Ya hay un scraping en curso (proceso ${pid}).`);
+    console.error(`A scrape is already running (process ${pid}).`);
     process.exit(2);
   }
 } catch {}
@@ -66,7 +66,7 @@ const enabled = (process.env.SOURCES ? process.env.SOURCES.split(',') : DEFAULT_
 const only = args.only ? String(args.only).split(',') : enabled;
 for (const s of only) if (!enabled.includes(s)) enabled.push(s);
 const unknown = only.filter((s) => !SCRAPERS[s]);
-if (unknown.length) throw new Error(`Fuente desconocida: ${unknown.join(', ')} (opciones: ${Object.keys(SCRAPERS).join(', ')})`);
+if (unknown.length) throw new Error(`Unknown source: ${unknown.join(', ')} (options: ${Object.keys(SCRAPERS).join(', ')})`);
 
 let previous = { decks: [], sources: {} };
 try {
@@ -76,8 +76,8 @@ try {
 const results = {};
 const t0 = Date.now();
 /**
- * Torneos oficiales a tomar de pokedata: desde el inicio del formato vigente, estimado como la lista
- * más antigua del formato vigente en Limitless (o POKEDATA_SINCE, o los últimos 150 días).
+ * Official tournaments to take from pokedata: since the start of the current format, estimated as the oldest
+ * list of the current format on Limitless (or POKEDATA_SINCE, or the last 150 days).
  */
 function pokedataSince() {
   if (process.env.POKEDATA_SINCE) return process.env.POKEDATA_SINCE;
@@ -86,7 +86,7 @@ function pokedataSince() {
   return dates[0] ?? new Date(Date.now() - 150 * 86400_000).toISOString().slice(0, 10);
 }
 
-// pokedata se clasifica con los arquetipos de las otras fuentes: va al final
+// pokedata is classified with the archetypes of the other sources: it goes last
 only.sort((a, b) => Number(a === 'pokedata') - Number(b === 'pokedata'));
 for (const src of only) results[src] = await SCRAPERS[src]();
 
@@ -95,15 +95,15 @@ const sources = Object.fromEntries(Object.entries(previous.sources ?? {}).filter
 let decks = previous.decks.filter((d) => enabled.includes(d.source) && !(d.source in results));
 for (const [src, list] of Object.entries(results)) {
   if (!list.length && previous.decks.some((d) => d.source === src)) {
-    console.warn(`[${src}] 0 mazos: se conservan los datos anteriores`);
+    console.warn(`[${src}] 0 decks: keeping the previous data`);
     decks.push(...previous.decks.filter((d) => d.source === src));
     continue;
   }
   decks.push(...list);
   sources[src] = { updatedAt: now, decks: list.length };
 }
-// Unifica arquetipos de Pokecabook con los nombres de Limitless cuando hay una sola coincidencia
-// (ej. "Alakazam" -> "Alakazam Powerful Hand"), para que ambas fuentes cuenten juntas.
+// Merges Pokecabook archetypes with Limitless names when there is a single match
+// (e.g. "Alakazam" -> "Alakazam Powerful Hand"), so both sources count together.
 const limArchetypes = [...new Set(decks.filter((d) => d.source === 'limitless').map((d) => d.archetype))];
 const limByName = new Map(decks.filter((d) => d.source === 'limitless').map((d) => [d.archetype, d]));
 for (const d of decks) {
@@ -120,7 +120,7 @@ for (const d of decks) {
     if (!d.icons?.length) d.icons = limByName.get(match).icons;
     continue;
   }
-  // si no, mismo nombre exacto que un arquetipo de City League JP (ej. "Alakazam / Dudunsparce")
+  // otherwise, the same exact name as a City League JP archetype (e.g. "Alakazam / Dudunsparce")
   const jp = decks.find((x) => x.source === 'limitless-jp' && x.archetype.toLowerCase() === d.archetype.toLowerCase());
   if (jp) {
     d.archetypeId = jp.archetypeId;
@@ -128,7 +128,7 @@ for (const d of decks) {
   }
 }
 
-// Pokedata: sin duplicar listas que Limitless ya trae (misma persona, mismo torneo) y con arquetipo asignado
+// Pokedata: without duplicating lists Limitless already has (same player, same tournament) and with an archetype
 const playerKey = (p) => (p ?? '').replace(/\s*\[[A-Z]{2}\]\s*$/, '').trim().toLowerCase();
 const limSeen = decks.filter((d) => d.source === 'limitless' && d.player && d.date);
 decks = decks.filter((d) => {
@@ -138,9 +138,9 @@ decks = decks.filter((d) => {
 });
 const profiles = buildProfiles(decks);
 
-// Pokecabook: artículos cuyo título es un apodo sin Pokémon reconocible (ej. "おまつりおんど", que quedaría
-// como "Grookey"): se busca el arquetipo conocido más parecido por sus Pokémon y, si la mayoría de los mazos
-// del artículo coincide, se usa ese nombre para todo el artículo (ej. "Festival Lead").
+// Pokecabook: articles whose title is a nickname with no recognizable Pokémon (e.g. "おまつりおんど", which would
+// become "Grookey"): the most similar known archetype by Pokémon is looked up and, if most decks of the
+// article match, that name is used for the whole article (e.g. "Festival Lead").
 const knownNames = new Set(decks.filter((d) => d.source === 'limitless' || d.source === 'limitless-jp').map((d) => d.archetype));
 const pcbByArticle = new Map();
 for (const d of decks) {
@@ -162,7 +162,7 @@ for (const [jp, group] of pcbByArticle) {
     if (!d.icons?.length) d.icons = ref.icons;
   }
   pcbRenamed += group.length;
-  console.log(`[pokecabook] "${jp}" -> ${winner} (${n}/${group.length} mazos por similitud)`);
+  console.log(`[pokecabook] "${jp}" -> ${winner} (${n}/${group.length} decks by similarity)`);
 }
 
 let classified = 0;
@@ -175,9 +175,9 @@ for (const d of pdDecks) {
   d.similarity = Math.round(c.similarity * 100) / 100;
   if (c.matched) classified++;
 }
-if (pdDecks.length) console.log(`[pokedata] arquetipos: ${classified} de ${pdDecks.length} listas reconocidas; el resto, por su Pokémon principal`);
+if (pdDecks.length) console.log(`[pokedata] archetypes: ${classified} of ${pdDecks.length} lists recognized; the rest named by their main Pokémon`);
 
-// Identidad de cada carta: los Pokémon se distinguen por sus ataques (ver public/cardkey.js)
+// Identity of each card: Pokémon are told apart by their attacks (see public/cardkey.js)
 let unresolved = 0;
 await mapLimit(decks, 4, async (d) => {
   for (const c of d.cards) {
@@ -194,7 +194,7 @@ await mapLimit(decks, 4, async (d) => {
       print = enSet ? { set: enSet, number: enNumber, lang: 'en' } : c.set ? { set: c.set, number: c.number, lang: 'jp' } : null;
     }
     let moves = print ? await getMoves(print) : null;
-    // listas de torneos oficiales con impresiones japonesas (ej. "M1S 89"): se busca la ficha japonesa
+    // official tournament lists with Japanese prints (e.g. "M1S 89"): the Japanese card sheet is looked up
     if (!moves && print?.lang === 'en' && d.source !== 'pokecabook') {
       moves = await getMoves({ ...print, lang: 'jp' });
       if (moves) {
@@ -208,16 +208,16 @@ await mapLimit(decks, 4, async (d) => {
     c.key = cardKey(c.name, moves);
   }
 });
-console.log(`[cartas] ataques leídos; Pokémon sin ficha: ${unresolved}`);
+console.log(`[cards] attacks read; Pokémon without a sheet: ${unresolved}`);
 
-// sprites del Pokémon principal (estilo Limitless) para los mazos que no los traen de origen
+// main Pokémon sprites (Limitless style) for decks that do not come with them
 await addMissingSprites(decks);
 await addCompanionSprites(decks, familyOfDeck);
 
 decks.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
 
 await mkdir(path.dirname(OUT), { recursive: true });
-// escritura atómica: el servidor nunca lee un archivo a medio escribir
+// atomic write: the server never reads a half-written file
 await writeFile(OUT + '.tmp', JSON.stringify({ updatedAt: now, sources, decks }), 'utf8');
 await rename(OUT + '.tmp', OUT);
-console.log(`\n✓ ${decks.length} mazos guardados en data/decks.json (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+console.log(`\n✓ ${decks.length} decks saved to data/decks.json (${((Date.now() - t0) / 1000).toFixed(0)}s)`);

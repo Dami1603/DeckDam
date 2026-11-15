@@ -1,5 +1,5 @@
-# Lo que la CLI de Vercel NO sube al publicar desde tu PC.
-# (El frontend public/index.html y public/styles.css SÍ se sube: no está en GitHub, por eso se publica desde la PC.)
+# What the Vercel CLI does NOT upload when deploying from your machine.
+# (The frontend public/index.html and public/styles.css IS uploaded: it is not on GitHub, so it is deployed from the local machine.)
 node_modules
 data
 dist

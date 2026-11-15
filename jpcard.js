@@ -1,5 +1,5 @@
-// Ficha de una carta japonesa (aún sin versión en inglés) desde Limitless, traducida al inglés
-// (https://limitlesstcg.com/cards/jp/SET/N?translate=en), en el mismo formato que TCGdex.
+// Card sheet of a Japanese card (not yet released in English) from Limitless, translated to English
+// (https://limitlesstcg.com/cards/jp/SET/N?translate=en), in the same shape as TCGdex.
 import * as cheerio from 'cheerio';
 import { getText } from './scraper/http.js';
 
@@ -7,7 +7,7 @@ const CDN = 'https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc';
 const limitlessSet = (set) => (/^[A-Za-z]+-P$/.test(set) ? set.replace('-', '') : set); // "M-P" -> "MP"
 const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
-/** Ficha JP en formato tipo TCGdex. */
+/** JP card sheet in a TCGdex-like shape. */
 export async function fetchJpCard({ set, number }) {
   const code = limitlessSet(set);
   const n = String(Number(number) || number);
@@ -16,7 +16,7 @@ export async function fetchJpCard({ set, number }) {
   });
   const $ = cheerio.load(html);
   const name = clean($('.card-text-name').first().text());
-  if (!name) throw new Error('Ficha no encontrada');
+  if (!name) throw new Error('Card sheet not found');
 
   // "Mega Heatran ex - Metal - 300 HP"
   const titleParts = clean($('.card-text-title').first().text()).split(' - ').map(clean);
@@ -52,7 +52,7 @@ export async function fetchJpCard({ set, number }) {
   const resist = wrr.match(/Resistance:\s*([A-Za-z]+)/i)?.[1];
   const retreat = wrr.match(/Retreat:\s*(\d+)/i)?.[1];
 
-  // Entrenadores/Energías: el texto de la carta es la sección que sigue al tipo
+  // Trainers/Energy: the card text is the section that follows the type
   let effect;
   if (kind !== 'Pokemon') {
     effect = $('.card-text-section')

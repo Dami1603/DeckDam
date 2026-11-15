@@ -1,218 +1,233 @@
-# DeckDam
+<p align="center">
+  <img src="public/favicon.svg" width="96" alt="DeckDam logo" />
+</p>
 
-Busca una carta de Pokémon TCG legal en Standard y descubre **en qué mazos competitivos encaja**:
-qué arquetipos la juegan, en qué porcentaje de sus listas y con cuántas copias.
+<h1 align="center">DeckDam</h1>
 
-- **Cartas:** [TCGdex](https://tcgdex.dev), una API gratuita y sin clave con todas las expansiones, en inglés y español.
-- **Mazos:**
-  - **Limitless (internacional)** — [limitlesstcg.com/decks](https://limitlesstcg.com/decks): hasta 30
-    arquetipos del **formato vigente** y las 6 listas más recientes de cada uno (Regionales, Internacionales, Worlds).
-  - **City League JP** — [limitlesstcg.com/tournaments/jp](https://limitlesstcg.com/tournaments/jp): torneos japoneses
-    de los últimos 14 días (contados desde el más reciente) y las listas de su top 8, ya traducidas al inglés por
-    Limitless. El arquetipo se toma de los íconos de la lista: si coinciden con un arquetipo de Limitless internacional
-    se usa ese nombre, si no se arma con los Pokémon del mazo.
-  - **Pokedata** — [pokedata.ovh/standings](https://www.pokedata.ovh/standings): torneos oficiales Play! Pokémon
-    (Regionales, Internacionales, Worlds), categoría Masters, desde el inicio del formato vigente (la lista más antigua
-    del formato vigente en Limitless). Se toma el top 64 de cada torneo con su récord. Los torneos que aún no publicaron
-    listas se saltean y entran solos en un scraping posterior. Como el JSON no trae nombre de mazo, el arquetipo se
-    **clasifica** comparando los Pokémon de la lista con los arquetipos de Limitless y City League JP
-    ([scraper/classify.js](scraper/classify.js)). Las listas que Limitless ya tiene (misma persona y torneo) no se duplican.
-  - **Pokecabook** — índices de arquetipos del meta japonés: [archives/1417](https://pokecabook.com/archives/1417)
-    (meta principal, "環境デッキレシピまとめ") y [archives/6132](https://pokecabook.com/archives/6132) (otros arquetipos). Por cada arquetipo del índice se toman los 6 mazos más recientes
-    **del formato vigente** (la sección actual del artículo, ej. "30th CELEBRATION環境"); los artículos sin mazos del
-    formato vigente se omiten. Se leen sus códigos oficiales (pokemon-card.com) y cada carta se traduce al inglés con
-    la base de cartas japonesas de Limitless.
-    Además lee la recopilación diaria de ganadores de Gym Battle ([archives/27265](https://pokecabook.com/archives/27265)),
-    donde aparecen primero los mazos con cartas nuevas; cada mazo toma su arquetipo del subtítulo que lo encabeza
-    (`POKECABOOK_DAILY` para cambiar o agregar recopilaciones).
+<p align="center">
+  <b>Which Pokémon TCG deck does your card fit?</b><br />
+  Search any Standard-legal card and see which competitive archetypes play it, how many copies and with which partners.
+</p>
 
-## Idioma y precios
+<p align="center">
+  <a href="https://deckdam.vercel.app"><b>🌐 Live site: deckdam.vercel.app</b></a> ·
+  <a href="https://github.com/Dami1603/DeckDam/releases/latest">Latest release</a>
+</p>
 
-- **Idioma:** la interfaz está en **inglés por defecto**, con un selector EN / ES en la barra superior (se recuerda en el
-  navegador). El mismo selector cambia el idioma de las cartas (nombres y textos de TCGdex). Los textos están en
-  `public/i18n.js`; `?lang=es` en la URL abre la página en español.
-- **Tema claro / oscuro:** botón ☀️/🌙 en la barra superior. Oscuro por defecto (la identidad negro/bordó); la elección
-  se recuerda en el navegador. `?theme=light` en la URL abre la página en modo claro.
-- **Precio:** la vista de cada carta muestra el precio de **TCGplayer en USD** (precio de mercado y mínimo, por versión:
-  normal, holo, reverse holo), con la fecha del dato y un link al producto. El dato viene de TCGdex.
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="DeckDam home page with the most played cards carousel" width="900" />
+</p>
 
-## Se juega junto a (compañeras)
+## Features
 
-La vista de cada carta muestra hasta 6 cartas que suelen acompañarla: presentes en al menos el 40% de sus listas y al
-menos 1,5 veces más comunes ahí que en el meta general. Se descartan las staples genéricas (presentes en el 45% o más
-de todas las listas, como Boss's Orders, Ultra Ball, Poké Pad o Fezandipiti ex), las energías básicas y las otras
-versiones de la misma carta. Umbrales ajustables con `PARTNER_STAPLE`, `PARTNER_MIN_RATE` y `PARTNER_MIN_LIFT`.
+- **Card search** across every Standard-legal card (current and recent sets), in English or Spanish, powered by
+  [TCGdex](https://tcgdex.dev).
+- **Which decks it fits**: archetypes that play the card, inclusion rate in each one, average copies and every list that
+  uses it.
+- **Exact card identity**: two cards with the same name but different attacks (e.g. several "Moltres") are counted
+  separately; reprints with the same text count together.
+- **Often played with**: the cards that usually go with it, leaving out generic staples like Boss's Orders or Ultra Ball.
+- **Full card text** with the original energy symbols: abilities, attacks (cost, damage, effect), weakness, resistance
+  and retreat, plus the **TCGplayer price** in USD.
+- **Japan-only cards**: cards already played in Japan but not released in English yet, with their text translated.
+- **Deck gallery** with filters by source, date range and archetype family, sorting by rarity and Limitless-style
+  Pokémon sprites.
+- **Automatic updates** every 12 hours from four sources, **English / Spanish** interface, **light / dark** mode, mobile
+  friendly and basic SEO.
 
-## Cartas solo de Japón
+## Screenshots
 
-Las cartas que ya se juegan en Japón pero todavía no salieron en inglés (ej. Mega Heatran ex) aparecen en la búsqueda
-en una sección propia. Su vista muestra el texto traducido de la carta japonesa (ficha de Limitless con
-`?translate=en`, [jpcard.js](jpcard.js)) y su legalidad en el Standard japonés. Para las impresiones japonesas que sí
-tienen versión internacional se usan los ataques oficiales en inglés, así cuentan como la misma carta.
+| Card view | Deck gallery |
+|---|---|
+| ![Card view: Dragapult ex with its archetypes and partners](docs/screenshots/card.png) | ![Deck gallery grouped by archetype family](docs/screenshots/gallery.png) |
+| **Deck list** | **Light mode** |
+| ![Deck dialog with the full list](docs/screenshots/deck.png) | ![Light mode card view](docs/screenshots/light.png) |
+| **Spanish interface** | **Mobile** |
+| ![Home page in Spanish](docs/screenshots/spanish.png) | <img src="docs/screenshots/mobile.png" alt="Mobile card view" width="300" /> |
 
-## Sprites de los mazos
+## Data sources
 
-Cada mazo muestra el sprite de su Pokémon principal (hasta 2), como Limitless. Las fuentes que no los traen
-(Pokecabook y Pokedata, cuando el arquetipo no coincide con uno de Limitless) los calculan a partir del nombre del
-arquetipo con el formato de Limitless (`kangaskhan-mega`, `exeggutor-alola`, `ogerpon-wellspring`…) en
-[scraper/sprites.js](scraper/sprites.js). Si una forma nueva todavía no tiene sprite (ej. Mega Heatran), se usa el de la
-especie base. Los sprites verificados quedan en `data/sprites.json`.
+| Source | What is taken |
+|---|---|
+| [Limitless TCG](https://limitlesstcg.com/decks) | Up to 30 archetypes of the **current format** and the 6 most recent lists of each (Regionals, Internationals, Worlds). |
+| [Limitless City League JP](https://limitlesstcg.com/tournaments/jp) | Japanese tournaments of the last 14 days and their top 8 lists, already translated to English. The archetype comes from the list icons. |
+| [Pokedata](https://www.pokedata.ovh/standings) | Official Play! Pokémon tournaments (Masters) since the start of the current format, top 64 with records. Archetypes are **classified** by comparing each list with the known ones ([scraper/classify.js](scraper/classify.js)). |
+| [Pokecabook](https://pokecabook.com/archives/1417) | Japanese meta: the archetype indexes ([1417](https://pokecabook.com/archives/1417), [6132](https://pokecabook.com/archives/6132)) and the daily Gym Battle winners ([27265](https://pokecabook.com/archives/27265)). Official deck codes are read from pokemon-card.com and every card is translated to English through Limitless' Japanese card database. |
 
-Los mazos con arquetipo de un solo nombre (ej. "Dragapult ex") muestran además su **acompañante**: de las combinaciones
-conocidas del meta (arquetipos "X / Y" que aparecen en al menos 2 mazos) se toma la que la lista realmente lleva, con
-más copias. Las cartas de soporte genéricas (en el 30% o más de todas las listas, como Meowth ex o Fezandipiti ex) no
-cuentan como acompañante (`COMPANION_MAX_GLOBAL`, `COMPANION_MIN_PAIRS`).
+Cards and card text come from [TCGdex](https://tcgdex.dev) (free, no API key). Japan-only cards use the translated
+Limitless card sheet ([jpcard.js](jpcard.js)).
 
-## Familias de arquetipos
+## How it works
 
-La galería agrupa los arquetipos en familias según su Pokémon principal ([family.js](family.js)): por ejemplo, "Dragapult"
-junta Dragapult ex, Dragapult ex / Dudunsparce ex, Dragapult ex / Blaziken ex, etc. Al elegir una familia aparece una
-segunda fila con sus variantes para filtrar más fino. Los arquetipos sin Pokémon en el nombre (Basic Box, Festival Lead)
-forman su propia familia.
+### Card identity
 
-## SEO
+Every card has an **identity** ([public/cardkey.js](public/cardkey.js)) shared by the scraper, the server and the
+browser:
 
-- Metaetiquetas de la portada: título, descripción, URL canónica, Open Graph y Twitter (vista previa al compartir el link,
-  con `public/og-image.png` de 1200×630) y datos estructurados JSON-LD (`WebApplication`).
-- `/robots.txt` y `/sitemap.xml` generados por el servidor (la API queda excluida de los buscadores).
-- Título y descripción dinámicos por vista (búsqueda, carta, galería), en inglés y español.
-- **`SITE_URL`**: al publicar la app, definí la URL pública (ej. `SITE_URL=https://deckdam.app npm start`) para que la
-  canónica, el sitemap y las imágenes de Open Graph apunten al dominio correcto. Sin ella se usa la dirección del pedido.
-- Limitación: las vistas internas usan rutas con `#`, que los buscadores no indexan; solo se posiciona la portada.
+- **Pokémon:** name + attacks (or abilities when it has no attacks). Attacks come from Limitless for deck cards and from
+  TCGdex for the searched card. Reprints with the same text count together; different versions appear under
+  "Other versions".
+- **Trainers and Energy:** name only, normalized (no accents, unified apostrophes, "Basic Psychic Energy" = "Psychic
+  Energy").
+- Japanese prints that have an international version use the official English attacks, so they count as the same card.
 
-## Sobre este repositorio
+Search shows only **Standard-legal** cards (TCGdex `legal.standard`, plus new sets TCGdex does not flag yet, listed in
+`STANDARD_EXTRA_SETS` in `public/app.js`), without Pokémon TCG Pocket.
 
-Este repositorio publica la **base** de DeckDam: servidor, scrapers, identidad de cartas, familias de arquetipos y
-recursos compartidos. La interfaz (`public/index.html` y `public/styles.css`) y los datos descargados (`data/`) no se
-incluyen. Ver [LICENSE](LICENSE): todos los derechos reservados.
+### Partners ("Often played with")
 
-## Despliegue gratis: Vercel + GitHub Actions
+Up to 6 cards present in at least 40% of the card's lists and at least 1.5× more common there than in the overall meta.
+Generic staples (in 45% or more of all lists), basic Energy and other versions of the same card are excluded. Tunable
+with `PARTNER_STAPLE`, `PARTNER_MIN_RATE` and `PARTNER_MIN_LIFT`.
 
-- **Vercel** sirve la interfaz como estático (`dist/`, armado por `scripts/build-static.mjs`) y la API como una función
-  (`api/index.js`, la misma app de `server.js`). La función lee los mazos de **Vercel Blob** y revalida cada 5 minutos.
-- **GitHub Actions** (`.github/workflows/scrape.yml`) corre el scraper cada 12 horas y sube `data/decks.json` a Blob
-  con `scripts/blob.mjs`. La caché del scraper se guarda entre ejecuciones con `actions/cache`.
-- El frontend no está en GitHub, así que **se publica desde la PC** con la CLI de Vercel (`.vercelignore` define qué se
-  sube). No conectes el repositorio de GitHub al proyecto de Vercel: publicaría una versión sin interfaz.
+### Archetype families and sprites
 
-Pasos (una sola vez):
-1. `npx vercel` → iniciar sesión y crear el proyecto. Después, `npx vercel --prod` para publicar.
-2. En el panel de Vercel: **Storage → Create → Blob**, y conectarlo al proyecto (agrega `BLOB_READ_WRITE_TOKEN`).
-3. Subir los mazos actuales: `BLOB_READ_WRITE_TOKEN=... node scripts/blob.mjs upload`.
-4. En GitHub: **Settings → Secrets and variables → Actions** → secreto `BLOB_READ_WRITE_TOKEN` con el mismo token.
-5. Opcional: variable `SITE_URL` en Vercel con el dominio público (para la URL canónica y Open Graph).
+- The gallery groups archetypes into **families** by their main Pokémon ([family.js](family.js)): "Dragapult" gathers
+  Dragapult ex, Dragapult ex / Dudunsparce ex, Dragapult ex / Blaziken ex, etc. Picking a family shows its variants.
+- Every deck shows the **sprite** of its main Pokémon, Limitless style. Sources without sprites get them computed from
+  the archetype name (`kangaskhan-mega`, `exeggutor-alola`, `ogerpon-wellspring`…) in
+  [scraper/sprites.js](scraper/sprites.js), plus a second sprite for the **companion** the list actually runs
+  (e.g. Dragapult ex + Dusknoir), ignoring generic support Pokémon.
 
-Para publicar cambios del frontend: `npx vercel --prod`. Los mazos se actualizan solos.
+### SEO
 
-## Requisitos
+Home page meta tags (title, description, canonical, Open Graph, Twitter card, JSON-LD `WebApplication`), a 1200×630
+share image, `/robots.txt`, `/sitemap.xml` and a dynamic title/description per view. Set `SITE_URL` to the public domain
+when deploying. Internal views use `#` routes, which search engines do not index.
 
-Node.js 18 o superior.
+## Architecture and deployment
 
-## Uso
+DeckDam runs **for free** on Vercel + GitHub Actions:
+
+```
+GitHub Actions (every 12 h)                     Vercel
+┌──────────────────────────────┐                ┌──────────────────────────────────┐
+│ npm ci → scraper → decks.json│ ── upload ──▶  │ Vercel Blob  (decks.json)        │
+│ actions/cache keeps the      │                │        ▲ revalidated every 5 min │
+│ scraper cache between runs   │                │ api/index.js → server.js (API)   │
+└──────────────────────────────┘                │ dist/ static frontend (CDN)      │
+                                                └──────────────────────────────────┘
+```
+
+- **Vercel** serves the frontend as static files (`dist/`, built by `scripts/build-static.mjs`) and the API as a
+  function (`api/index.js`, the same Express app as `server.js`). The function reads the decks from **Vercel Blob** and
+  re-checks them every 5 minutes with `If-None-Match`.
+- **GitHub Actions** ([.github/workflows/scrape.yml](.github/workflows/scrape.yml)) runs the scraper every 12 hours and
+  uploads `data/decks.json` to Blob with `scripts/blob.mjs`.
+- The frontend is not in this repository, so it is **deployed from a local machine** with the Vercel CLI
+  (`.vercelignore` defines what is uploaded). The GitHub repository is intentionally not connected to the Vercel project.
+
+One-time setup:
+
+1. `npx vercel` to log in and create the project, then `npx vercel --prod` to deploy.
+2. Create a Blob store and connect it to the project (`npx vercel blob create-store <name> --access public --yes`), which
+   adds `BLOB_READ_WRITE_TOKEN`.
+3. Upload the current decks: `node --env-file=.env.local scripts/blob.mjs upload`.
+4. In GitHub, add the repository secret `BLOB_READ_WRITE_TOKEN` (**Settings → Secrets and variables → Actions**).
+5. Optional: set `SITE_URL` in Vercel to the public domain.
+
+To publish frontend changes: `npx vercel --prod`. Decks update on their own.
+
+## Running locally
+
+Requires **Node.js 18+**.
 
 ```bash
 npm install
-npm run scrape      # descarga los mazos y genera data/decks.json (la primera vez tarda ~10 min)
+npm run scrape      # downloads the decks and builds data/decks.json (first run takes ~10–20 min)
 npm start           # http://localhost:3000
 ```
 
-### Actualización de mazos
+Locally the server also updates the decks every 12 hours on its own (`SCRAPE_INTERVAL_HOURS`, `0` disables it) and never
+runs two scrapes at once. `npm run scrape` can be run at any time; the server picks up the new data without a restart.
 
-**Automática:** mientras `npm start` está corriendo, el servidor lanza el scraping cada 12 horas
-(`SCRAPE_INTERVAL_HOURS`, `0` lo desactiva). Al arrancar, si los datos tienen más de 12 horas, actualiza a los
-pocos segundos. Si falla, reintenta en 1 hora y conserva los datos anteriores. El indicador de arriba a la derecha
-muestra "Actualizando mazos…" mientras corre; al pasar el mouse se ve la próxima actualización. El progreso queda en
-`data/scrape.log`.
+> The interface (`public/index.html`, `public/styles.css`) is not included in this repository, so you need to provide
+> your own `index.html` to use the web UI. The API works without it.
 
-**Manual:** `npm run scrape` en cualquier momento. Nunca corren dos scrapings a la vez: si el servidor quiere
-actualizar mientras corre uno manual, reintenta 15 minutos después.
+### Scraper options
 
-En ambos casos el servidor toma los datos nuevos solo, sin reiniciarlo.
-
-### Opciones del scraper
-
-| Comando / variable | Qué hace | Por defecto |
+| Command / variable | What it does | Default |
 |---|---|---|
-| `npm run scrape:limitless` / `scrape:limitless-jp` / `scrape:pokecabook` / `scrape:pokedata` | Actualiza una sola fuente y conserva las demás activas | — |
-| `SOURCES` | Fuentes activas, separadas por coma (las demás se quitan de los datos) | `limitless,limitless-jp,pokecabook,pokedata` |
-| `POKEDATA_TOP` | Puestos por torneo oficial (top N, Masters) | 64 |
-| `POKEDATA_SINCE` | Fecha desde la que se toman torneos oficiales | inicio del formato vigente |
-| `CLASSIFY_THRESHOLD` | Similitud mínima para asignar un arquetipo conocido | 0.7 |
-| `LIMITLESS_ARCHETYPES` | Arquetipos de Limitless a leer | 30 |
-| `LIMITLESS_LISTS` | Listas por arquetipo | 6 |
-| `LIMITLESS_JP_DAYS` | Días de torneos japoneses a leer | 14 |
-| `LIMITLESS_JP_TOP` | Puestos por torneo japonés (top N) | 8 |
-| `POKECABOOK_HUBS` | Índices de Pokecabook a leer (ids de artículo, en orden) | `1417,6132` |
-| `POKECABOOK_ARTICLES` | Arquetipos de los índices a leer | 200 (todos) |
-| `POKECABOOK_DECKS` | Mazos por arquetipo | 6 |
-| `POKECABOOK_ENV` | Sección de formato a usar (se detecta sola) | automática |
-| `SCRAPE_DELAY_MS` | Pausa entre peticiones al mismo sitio | 400 |
-| `SCRAPE_INTERVAL_HOURS` | Cada cuántas horas actualiza el servidor (0 = nunca) | 12 |
+| `npm run scrape:limitless` / `scrape:limitless-jp` / `scrape:pokecabook` / `scrape:pokedata` | Updates a single source and keeps the other active ones | — |
+| `SOURCES` | Active sources, comma separated (the rest are removed from the data) | `limitless,limitless-jp,pokecabook,pokedata` |
+| `LIMITLESS_ARCHETYPES` | Limitless archetypes to read | 30 |
+| `LIMITLESS_LISTS` | Lists per archetype | 6 |
+| `LIMITLESS_JP_DAYS` | Days of Japanese tournaments to read | 14 |
+| `LIMITLESS_JP_TOP` | Placements per Japanese tournament (top N) | 8 |
+| `POKEDATA_TOP` | Placements per official tournament (top N, Masters) | 64 |
+| `POKEDATA_SINCE` | Date from which official tournaments are taken | start of the current format |
+| `CLASSIFY_THRESHOLD` | Minimum similarity to assign a known archetype | 0.7 |
+| `POKECABOOK_HUBS` | Pokecabook indexes to read (article ids, in order) | `1417,6132` |
+| `POKECABOOK_DAILY` | Pokecabook daily compilations to read | `27265` |
+| `POKECABOOK_ARTICLES` | Archetypes to read from the indexes | 200 (all) |
+| `POKECABOOK_DECKS` | Decks per archetype | 6 |
+| `POKECABOOK_ENV` | Format section to use (auto-detected) | automatic |
+| `COMPANION_MAX_GLOBAL` / `COMPANION_MIN_PAIRS` | Companion sprite filters | 0.3 / 2 |
+| `SCRAPE_DELAY_MS` | Pause between requests to the same site | 400 |
+| `SCRAPE_INTERVAL_HOURS` | How often the local server updates (0 = never) | 12 |
 
-Las páginas descargadas se guardan en `data/cache/`. Las listas y las traducciones no cambian, así que se guardan
-para siempre; los índices de mazos se vuelven a descargar cada 12 h. Las traducciones japonés→inglés quedan en
-`data/jp-translations.json`.
-
-## Estructura
-
-```
-server.js              API Express + archivos estáticos
-scraper/
-  index.js             orquestador -> data/decks.json
-  limitless.js         arquetipos, listas y cartas de Limitless
-  pokecabook.js        artículos -> códigos oficiales JP -> cartas
-  translate.js         carta JP -> nombre oficial en inglés (vía Limitless)
-  http.js              fetch con caché en disco y límite de velocidad por sitio
-public/                frontend (HTML/CSS/JS, sin compilación)
-```
+Downloaded pages are cached in `data/cache/`. Lists, card sheets and translations never change, so they are cached
+forever; deck indexes are refreshed every 12 h.
 
 ### API
 
-| Endpoint | Descripción |
+| Endpoint | Description |
 |---|---|
-| `GET /api/meta` | Totales y fecha de actualización |
-| `GET /api/usage?key=mew%20ex%7Cgenome%20hacking` | Arquetipos y listas que usan esa carta exacta, más otras versiones con el mismo nombre |
-| `GET /api/decks?source=&archetype=&family=&q=&from=&to=&sort=&limit=&offset=` | Galería de mazos (`from`/`to`: fechas YYYY-MM-DD; `family`: familia de arquetipos; `sort`: `rare` = arquetipos con menos listas primero, `popular` = al revés) |
-| `GET /api/decks/:id` | Mazo completo |
-| `GET /api/archetypes?source=&from=&to=` | Arquetipos con cantidad de listas (con los mismos filtros) |
-| `GET /api/cards` | Cartas distintas presentes en los mazos |
+| `GET /api/meta` | Totals, sources and last update |
+| `GET /api/usage?key=dragapult%20ex%7Cjet%20headbutt%7Cphantom%20dive` | Archetypes, lists and partners of that exact card, plus other versions with the same name |
+| `GET /api/decks?source=&archetype=&family=&q=&from=&to=&sort=&limit=&offset=` | Deck gallery (`from`/`to`: YYYY-MM-DD; `sort`: `rare` or `popular`) |
+| `GET /api/decks/:id` | Full deck |
+| `GET /api/archetypes?source=&from=&to=` | Archetypes with list counts |
+| `GET /api/cards` | Distinct cards present in decks |
+| `GET /api/jpcard?key=` | Translated sheet of a Japan-only card |
 
-## Cómo se cruzan las cartas
+## Project structure
 
-Dos cartas con el mismo nombre pueden ser distintas (ej. varios "Moltres" con ataques diferentes). Por eso cada carta
-tiene una **identidad** ([public/cardkey.js](public/cardkey.js)), que comparten el scraper, el servidor y el navegador:
+```
+server.js                Express API (+ static files and SEO routes locally)
+scheduler.js             automatic updates when running locally
+family.js                archetype families
+jpcard.js                Japan-only card sheets (Limitless, translated)
+api/index.js             Vercel function (exports the Express app)
+scraper/
+  index.js               orchestrator -> data/decks.json
+  limitless.js           Limitless archetypes, lists and cards
+  limitless-jp.js        Japanese City League (Limitless)
+  pokedata.js            official tournament standings (Pokedata)
+  pokecabook.js          Pokecabook articles -> official JP deck codes -> cards
+  translate.js           JP card -> official English name (via Limitless)
+  cardtext.js            abilities and attacks (card identity)
+  classify.js            archetype classification by similarity
+  sprites.js             Limitless-style Pokémon sprites
+  http.js                fetch with disk cache and per-site rate limiting
+scripts/
+  build-static.mjs       Vercel build (public/ -> dist/)
+  blob.mjs               upload/download decks.json to/from Vercel Blob
+public/                  shared frontend code and assets (UI files not included)
+.github/workflows/       scheduled scraping (GitHub Actions)
+```
 
-- **Pokémon:** nombre + ataques (o habilidades, si no tiene ataques). Los ataques salen de la ficha de Limitless para
-  las cartas de los mazos y de TCGdex para la carta que buscas. Las reimpresiones con el mismo texto cuentan juntas;
-  las versiones distintas se muestran aparte, en "Otras versiones".
-- **Entrenadores y Energías:** solo el nombre, normalizado (sin acentos, apóstrofos unificados,
-  "Basic Psychic Energy" = "Psychic Energy").
+## About this repository
 
-Si buscas en español, la app usa los ataques de la versión en inglés de esa misma carta. La búsqueda muestra solo
-cartas **legales en Standard** (filtro `legal.standard` de TCGdex, más las expansiones nuevas que TCGdex todavía
-no marca como legales, listadas en `STANDARD_EXTRA_SETS` de `public/app.js`; hoy: Delta Reign), sin Pokémon TCG Pocket, y los mazos son solo de
-formato Standard. La vista de cada carta muestra su texto completo: habilidades, ataques (costo, daño y efecto),
-debilidad, resistencia y retirada.
+This repository publishes the **base** of DeckDam: server, scrapers, card identity, archetype families and shared
+assets. The interface (`public/index.html` and `public/styles.css`) and the downloaded data (`data/`) are not included.
+See [LICENSE](LICENSE): all rights reserved.
 
-## Notas
+This is a non-commercial fan project, not affiliated with The Pokémon Company, Limitless, Pokecabook or Pokedata. The
+scraper goes slowly and caches what it downloads so it does not overload those sites.
 
-Es un proyecto de fans, sin afiliación con The Pokémon Company, Limitless ni Pokecabook. El scraper va despacio y guarda
-lo que descarga para no sobrecargar esos sitios. Si cambia el HTML de alguna fuente, hay que ajustar su parser en `scraper/`.
+## Credits
 
-## Créditos
-
-- Cartas e imágenes de cartas: [TCGdex](https://tcgdex.dev) y [Limitless TCG](https://limitlesstcg.com).
-- Mazos: [Limitless TCG](https://limitlesstcg.com), [Pokecabook](https://pokecabook.com/archives/1417) y
+- Cards and card images: [TCGdex](https://tcgdex.dev) and [Limitless TCG](https://limitlesstcg.com). Prices from
+  TCGplayer via TCGdex.
+- Decks: [Limitless TCG](https://limitlesstcg.com), [Pokecabook](https://pokecabook.com/archives/1417) and
   [Pokedata](https://www.pokedata.ovh/standings).
-- Símbolos de energía y etiqueta "Ability":
-  [“Pokemon SV - SymbolSheet”](https://www.deviantart.com/aschefield/art/Pokemon-SV---SymbolSheet-1164787196)
-  por [aschefield](https://www.deviantart.com/aschefield), bajo licencia
-  [CC BY-NC-ND 3.0](https://creativecommons.org/licenses/by-nc-nd/3.0/). El archivo
-  `public/assets/sv-symbolsheet-aschefield.png` es la hoja original **sin modificar**: la app muestra cada símbolo
-  como *sprite* (con CSS), sin recortarla ni editarla. La licencia no permite uso comercial: si la app se
-  monetiza, hay que reemplazar estos símbolos o pedir permiso al autor.
-- Ícono de energía Dragón (`public/assets/energy-dragon.svg`): esfera de diseño propio, al estilo de la hoja anterior
-  (que no incluye Dragón), con el glifo del tipo Dragón redibujado en vector. Las otras hojas del mismo autor que sí
-  traen Dragón (SWSH, BWXY) no tienen licencia de uso.
-- Pokémon y sus símbolos son marcas de Nintendo / Creatures / GAME FREAK / The Pokémon Company. Proyecto de fans,
-  sin fines comerciales y sin afiliación.
+- Energy symbols and "Ability" label:
+  [“Pokemon SV - SymbolSheet”](https://www.deviantart.com/aschefield/art/Pokemon-SV---SymbolSheet-1164787196) by
+  [aschefield](https://www.deviantart.com/aschefield), licensed under
+  [CC BY-NC-ND 3.0](https://creativecommons.org/licenses/by-nc-nd/3.0/). The file
+  `public/assets/sv-symbolsheet-aschefield.png` is the original sheet, **unmodified**; the app shows each symbol as a CSS
+  sprite. The license does not allow commercial use.
+- Dragon energy icon (`public/assets/energy-dragon.svg`): custom sphere in the style of the sheet above (which has no
+  Dragon symbol), with the Dragon type glyph redrawn as a vector.
+- Pokémon and all related names and symbols are trademarks of Nintendo / Creatures / GAME FREAK / The Pokémon Company.

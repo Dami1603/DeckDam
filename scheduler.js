@@ -1,5 +1,5 @@
-// Actualización automática de mazos: mientras el servidor corre, lanza el scraper cada N horas.
-//   SCRAPE_INTERVAL_HOURS=12  (por defecto)   ·   SCRAPE_INTERVAL_HOURS=0  lo desactiva
+// Automatic deck updates: while the server runs, it launches the scraper every N hours.
+//   SCRAPE_INTERVAL_HOURS=12  (default)   ·   SCRAPE_INTERVAL_HOURS=0  disables it
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
@@ -18,7 +18,7 @@ export function startScheduler({ root, dataFile, log = console.log }) {
     nextRun: null,
   };
   if (!status.enabled) {
-    log('Actualización automática desactivada (SCRAPE_INTERVAL_HOURS=0)');
+    log('Automatic updates disabled (SCRAPE_INTERVAL_HOURS=0)');
     return status;
   }
 
@@ -50,7 +50,7 @@ export function startScheduler({ root, dataFile, log = console.log }) {
     status.startedAt = new Date().toISOString();
     status.nextRun = null;
     const t0 = Date.now();
-    log('↻ Actualizando mazos (scraping automático)…');
+    log('↻ Updating decks (automatic scraping)…');
 
     const out = createWriteStream(path.join(root, 'data', 'scrape.log'));
     child = spawn(process.execPath, [path.join(root, 'scraper', 'index.js')], { cwd: root, env: process.env });
@@ -67,23 +67,23 @@ export function startScheduler({ root, dataFile, log = console.log }) {
       const durationSec = Math.round((Date.now() - t0) / 1000);
       const lastLine = tail.trim().split('\n').filter(Boolean).at(-1) ?? '';
       if (code === 2) {
-        // ya había un scraping manual en curso: reintentar en un rato
-        status.lastRun = { finishedAt: new Date().toISOString(), ok: false, message: 'Otro scraping en curso; se reintenta en 15 min', durationSec };
+        // a manual scrape was already running: retry in a while
+        status.lastRun = { finishedAt: new Date().toISOString(), ok: false, message: 'Another scrape is running; retrying in 15 min', durationSec };
         schedule(15 * 60_000);
         return;
       }
-      status.lastRun = { finishedAt: new Date().toISOString(), ok: code === 0, message: code === 0 ? lastLine : `Error (código ${code}): ${lastLine}`, durationSec };
-      log(code === 0 ? `✓ Mazos actualizados en ${durationSec}s` : `✗ Falló la actualización de mazos (código ${code}); ver data/scrape.log`);
-      // si falló, reintentar antes (1 h) en vez de esperar el intervalo completo
+      status.lastRun = { finishedAt: new Date().toISOString(), ok: code === 0, message: code === 0 ? lastLine : `Error (code ${code}): ${lastLine}`, durationSec };
+      log(code === 0 ? `✓ Decks updated in ${durationSec}s` : `✗ Deck update failed (code ${code}); see data/scrape.log`);
+      // on failure, retry sooner (1 h) instead of waiting the full interval
       schedule(code === 0 ? intervalHours * HOUR : Math.min(HOUR, intervalHours * HOUR));
     });
   }
 
-  // al arrancar: si los datos son más viejos que el intervalo, actualizar enseguida (tras 10 s)
+  // on startup: if the data is older than the interval, update right away (after 10 s)
   lastUpdate().then((ts) => {
     const due = ts + intervalHours * HOUR - Date.now();
     schedule(Math.max(10_000, due));
-    log(`Actualización automática cada ${intervalHours} h · próxima: ${new Date(Date.now() + Math.max(10_000, due)).toLocaleString('es')}`);
+    log(`Automatic updates every ${intervalHours} h · next: ${new Date(Date.now() + Math.max(10_000, due)).toLocaleString('en')}`);
   });
 
   const stop = () => child?.kill();

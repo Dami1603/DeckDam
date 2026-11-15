@@ -1,5 +1,5 @@
-// Scraper de https://limitlesstcg.com/decks
-// 1) Lista de arquetipos del formato  2) listas recientes de cada arquetipo  3) cartas de cada lista
+// Scraper for https://limitlesstcg.com/decks
+// 1) Archetype list of the format  2) recent lists of each archetype  3) cards of each list
 import * as cheerio from 'cheerio';
 import { getText, mapLimit } from './http.js';
 
@@ -15,8 +15,8 @@ export function limitlessImage(set, number, lang = 'en', size = 'SM') {
   return `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpci/${set}/${set}_${n}_R_EN_${size}.png`;
 }
 
-// Sin parámetro de formato, Limitless muestra el formato vigente (desde la última rotación).
-// Ojo: "?format=standard" es el histórico de Standard de todas las épocas, no el meta actual.
+// Without a format parameter, Limitless shows the current format (since the last rotation).
+// Careful: "?format=standard" is the all-time Standard history, not the current meta.
 const fmtQuery = (format) => (format ? `?format=${format}` : '');
 
 export async function getArchetypes(format = null) {
@@ -58,9 +58,9 @@ function sectionFromHeading(h) {
   return 'energy';
 }
 
-/** @param {string} listPath id de lista ("31128") o ruta japonesa ("jp/76883") */
+/** @param {string} listPath list id ("31128") or Japanese path ("jp/76883") */
 export async function getDecklist(listPath) {
-  // las listas publicadas no cambian: caché permanente
+  // published lists never change: permanent cache
   const html = await getText(`${BASE}/decks/list/${listPath}`, { ttlHours: Infinity });
   const $ = cheerio.load(html);
   const desc = $('meta[name="description"]').attr('content') ?? '';
@@ -112,7 +112,7 @@ export async function scrapeLimitless({
   log = console.log,
 } = {}) {
   const archetypes = (await getArchetypes(format)).slice(0, maxArchetypes);
-  log(`[limitless] ${archetypes.length} arquetipos (${format ?? 'formato vigente'})`);
+  log(`[limitless] ${archetypes.length} archetypes (${format ?? 'current format'})`);
   const decks = [];
 
   for (const [i, arch] of archetypes.entries()) {
@@ -127,7 +127,7 @@ export async function scrapeLimitless({
       try {
         return { listId, ...(await getDecklist(listId)) };
       } catch (e) {
-        log(`[limitless]  ✗ lista ${listId}: ${e.message}`);
+        log(`[limitless]  ✗ list ${listId}: ${e.message}`);
         return null;
       }
     });
@@ -149,7 +149,7 @@ export async function scrapeLimitless({
         cards: l.cards,
       });
     }
-    log(`[limitless] (${i + 1}/${archetypes.length}) ${arch.name}: ${lists.filter(Boolean).length} listas`);
+    log(`[limitless] (${i + 1}/${archetypes.length}) ${arch.name}: ${lists.filter(Boolean).length} lists`);
   }
   return decks;
 }

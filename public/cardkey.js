@@ -1,11 +1,11 @@
-// Identidad de una carta, compartida por servidor, scraper y navegador.
+// Card identity, shared by the server, the scraper and the browser.
 //
-// En el TCG dos cartas con el mismo nombre pueden ser distintas (ej. varios "Moltres" con
-// ataques diferentes). Por eso los Pokémon se identifican por nombre + habilidades + ataques:
-// las reimpresiones (mismo texto) cuentan juntas y las versiones distintas no se mezclan.
-// Entrenadores y Energías se identifican sólo por el nombre.
+// In the TCG two cards with the same name can be different (e.g. several "Moltres" with
+// different attacks). That is why Pokémon are identified by name + abilities + attacks:
+// reprints (same text) count together and different versions are not mixed.
+// Trainers and Energy are identified by name only.
 
-/** Normaliza un texto para comparar entre TCGdex, Limitless y traducciones JP. */
+/** Normalizes a text to compare across TCGdex, Limitless and JP translations. */
 export function normName(s = '') {
   return String(s)
     .normalize('NFD')
@@ -20,10 +20,10 @@ export function normName(s = '') {
 }
 
 /**
- * Pokémon: nombre + ataques (o habilidades si no tiene ataques). Se usan los ataques porque
- * TCGdex no siempre lista habilidades/poderes VSTAR, y las versiones distintas difieren en ataques.
+ * Pokémon: name + attacks (or abilities if it has no attacks). Attacks are used because
+ * TCGdex does not always list abilities/VSTAR powers, and different versions differ in attacks.
  * @param {string} name
- * @param {{attacks?: string[], abilities?: string[]}|null} moves null para Entrenador/Energía
+ * @param {{attacks?: string[], abilities?: string[]}|null} moves null for Trainer/Energy
  */
 export function cardKey(name, moves = null) {
   const base = normName(name);
@@ -33,7 +33,7 @@ export function cardKey(name, moves = null) {
   return m.length ? `${base}|${m.join('|')}` : base;
 }
 
-/** Clave de una carta de TCGdex (objeto de detalle /cards/{id}). */
+/** Key of a TCGdex card (detail object /cards/{id}). */
 export function tcgdexKey(card) {
   if (!card) return null;
   if (card.category !== 'Pokemon') return cardKey(card.name);

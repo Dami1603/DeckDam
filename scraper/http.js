@@ -1,5 +1,5 @@
-// Cliente HTTP con caché en disco y límite de velocidad por host,
-// para no castigar a las páginas de origen.
+// HTTP client with disk cache and per-host rate limiting,
+// so the source sites are not hammered.
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -27,9 +27,9 @@ function schedule(host, task) {
 }
 
 /**
- * GET de texto con caché.
+ * Text GET with cache.
  * @param {string} url
- * @param {{ttlHours?: number, retries?: number}} opts ttlHours=Infinity para páginas inmutables
+ * @param {{ttlHours?: number, retries?: number}} opts ttlHours=Infinity for immutable pages
  */
 export async function getText(url, { ttlHours = 12, retries = 2 } = {}) {
   await mkdir(CACHE_DIR, { recursive: true });
@@ -61,7 +61,7 @@ export async function getText(url, { ttlHours = 12, retries = 2 } = {}) {
   }
 }
 
-/** Ejecuta fn sobre items con concurrencia limitada. */
+/** Runs fn over items with limited concurrency. */
 export async function mapLimit(items, limit, fn) {
   const out = new Array(items.length);
   let i = 0;

@@ -1,5 +1,5 @@
-// Traducciones de la interfaz (inglés por defecto, español opcional).
-// Cada entrada es un texto o una función (vars) => texto para plurales y valores.
+// Interface translations (English by default, Spanish optional).
+// Each entry is a string or a function (vars) => string for plurals and values.
 
 export const LANGS = ['en', 'es'];
 const STORAGE_KEY = 'ddpk.ui';
@@ -19,7 +19,7 @@ export function setLang(lang) {
   } catch {}
 }
 
-/** Locale para fechas y números. */
+/** Locale for dates and numbers. */
 export const locale = () => (current === 'es' ? 'es' : 'en-US');
 
 const plural = (n, one, many) => (n === 1 ? one : many);
@@ -57,7 +57,7 @@ const STRINGS = {
     'ago.days': (v) => `${v.n} ${plural(v.n, 'day', 'days')} ago`,
     lists: (v) => `${v.n} ${plural(v.n, 'list', 'lists')}`,
 
-    // ---- búsqueda
+    // ---- search
     'hero.eyebrow': 'Pokémon TCG · Deck finder',
     'hero.title': 'Which deck does <em>your card fit</em>?',
     'hero.text':
@@ -97,7 +97,7 @@ const STRINGS = {
     'tab.pokemon': 'Pokémon',
     'tab.trainer': 'Trainers',
 
-    // ---- carta
+    // ---- card
     'card.notFound': 'Card not found',
     'card.inEnglish': (v) => `In English: ${v.name}`,
     'card.noTcgdex': 'Not in TCGdex (possibly a Japan-only card). Image taken from the deck.',
@@ -140,7 +140,7 @@ const STRINGS = {
       `It does not appear in the ${v.n} recent lists analyzed${v.variants ? ', but other versions with the same name are played.' : '. It may be an off-rotation or niche card.'}`,
     'empty.maybe': 'Did you mean?',
 
-    // ---- texto de la carta
+    // ---- card text
     'ct.ability': 'Ability',
     'ct.attack': 'Attack',
     'ct.weakness': 'Weakness',
@@ -163,7 +163,7 @@ const STRINGS = {
     'price.unlimited': 'Unlimited',
     'price.unlimited-holofoil': 'Unlimited holo',
 
-    // ---- mazos
+    // ---- decks
     'section.pokemon': 'Pokémon',
     'section.trainer': 'Trainers',
     'section.energy': 'Energy',
@@ -389,14 +389,14 @@ const STRINGS = {
   },
 };
 
-/** Texto traducido. Si falta en el idioma actual, cae al inglés y luego a la clave. */
+/** Translated string. If missing in the current language, falls back to English and then to the key. */
 export function t(key, vars = {}) {
   const entry = STRINGS[current]?.[key] ?? STRINGS.en[key];
   if (entry == null) return key;
   return typeof entry === 'function' ? entry(vars) : entry;
 }
 
-// ---- textos fijos de index.html (pie de página, etc.), como HTML
+// ---- fixed texts of index.html (footer, etc.), as HTML
 const LINK = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
 const STATIC_HTML = {
   en: {
@@ -409,7 +409,7 @@ const STATIC_HTML = {
   },
 };
 
-/** Aplica el idioma a los elementos fijos de la página ([data-i18n] texto, [data-i18n-html] HTML). */
+/** Applies the language to the fixed elements of the page ([data-i18n] text, [data-i18n-html] HTML). */
 export function applyStatic(root = document) {
   document.documentElement.lang = current;
   root.querySelectorAll('[data-i18n]').forEach((el) => (el.textContent = t(el.dataset.i18n)));

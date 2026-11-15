@@ -1,7 +1,7 @@
 # Frontend
 
-La interfaz de DeckDam (`index.html` y `styles.css`) no está incluida en este repositorio.
+The DeckDam interface (`index.html` and `styles.css`) is not included in this repository.
 
-Este repositorio publica la base del proyecto: el servidor, los scrapers de mazos, la lógica de identidad de cartas,
-las familias de arquetipos y los recursos compartidos. Para levantar el servidor hace falta proveer un `index.html`
-propio en esta carpeta.
+This repository publishes the base of the project: the server, the deck scrapers, the card identity logic, archetype
+families and shared assets. To serve the web UI you need to provide your own `index.html` in this folder; the API
+works without it.

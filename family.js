@@ -1,12 +1,12 @@
-// Familias de arquetipos: agrupa variantes del mismo Pokémon principal
-// (ej. "Dragapult ex", "Dragapult ex / Dudunsparce ex" y "Dragapult ex / Blaziken ex" -> familia "Dragapult").
+// Archetype families: groups variants of the same main Pokémon
+// (e.g. "Dragapult ex", "Dragapult ex / Dudunsparce ex" and "Dragapult ex / Blaziken ex" -> family "Dragapult").
 import { normName } from './public/cardkey.js';
 
 const stripEx = (s) => s.replace(/\s+ex$/i, '').trim();
 
 /**
- * Familia de un mazo: el Pokémon del mazo que encabeza el nombre del arquetipo.
- * Sin coincidencia (ej. "Basic Box", "Festival Lead"), la familia es el propio nombre.
+ * Family of a deck: the Pokémon in the deck that leads the archetype name.
+ * Without a match (e.g. "Basic Box", "Festival Lead"), the family is the name itself.
  * @returns {{ key: string, name: string }}
  */
 export function familyOfDeck(deck) {
@@ -19,7 +19,7 @@ export function familyOfDeck(deck) {
     if (base.length < 3) continue;
     const species = base.split(' ').at(-1); // "ogerpon"
     const exact = nlead === normName(c.name) || nlead === base || nlead.startsWith(base + ' ');
-    // "Ogerpon Meganium": el arquetipo empieza por la especie de "Teal Mask Ogerpon ex"
+    // "Ogerpon Meganium": the archetype starts with the species of "Teal Mask Ogerpon ex"
     const bySpecies = species.length >= 4 && (nlead === species || nlead.startsWith(species + ' '));
     if (!exact && !bySpecies) continue;
     const score = (exact ? 1000 : 0) + base.length;
@@ -29,7 +29,7 @@ export function familyOfDeck(deck) {
   return { key: normName(name), name };
 }
 
-/** Asigna a todos los mazos de un mismo arquetipo la familia más frecuente entre ellos. */
+/** Gives every deck of the same archetype the most frequent family among them. */
 export function assignFamilies(decks) {
   const votes = new Map(); // archetypeKey -> Map(familyKey -> {name, n})
   for (const d of decks) {

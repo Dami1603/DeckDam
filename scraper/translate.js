@@ -1,6 +1,6 @@
-// Traducción de cartas japonesas (pokemon-card.com) al inglés.
-// Ruta: id oficial JP -> (código de set, número) -> limitlesstcg.com/cards/jp/SET/N?translate=en
-// Resultado cacheado para siempre en data/jp-translations.json
+// Translation of Japanese cards (pokemon-card.com) to English.
+// Path: official JP id -> (set code, number) -> limitlesstcg.com/cards/jp/SET/N?translate=en
+// Result cached forever in data/jp-translations.json
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,8 +10,8 @@ import { getText } from './http.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILE = path.join(ROOT, 'data', 'jp-translations.json');
 
-// Energías básicas: mismo nombre que usa Limitless en sus listas ("Psychic Energy")
-// e impresión de referencia en Mega Evolution Energy (MEE).
+// Basic Energy: same name Limitless uses in its lists ("Psychic Energy")
+// and reference print in Mega Evolution Energy (MEE).
 const BASIC_ENERGY = {
   草: ['Grass', 9], 炎: ['Fire', 10], 水: ['Water', 11], 雷: ['Lightning', 12], 超: ['Psychic', 13],
   闘: ['Fighting', 14], 悪: ['Darkness', 15], 鋼: ['Metal', 16], フェアリー: ['Fairy', null],
@@ -54,7 +54,7 @@ async function setFromOfficialDetails(cardId) {
   return { set, number: String(Number(numMatch[1])) };
 }
 
-// Promos: el código oficial lleva guion ("SV-P", "M-P") y el de Limitless no ("SVP", "MP")
+// Promos: the official code has a hyphen ("SV-P", "M-P") and the Limitless one does not ("SVP", "MP")
 const limitlessSetCode = (set) => (/^[A-Za-z]+-P$/.test(set) ? set.replace('-', '') : set);
 
 async function englishNameFromLimitless(rawSet, number) {
@@ -66,12 +66,12 @@ async function englishNameFromLimitless(rawSet, number) {
   const $ = cheerio.load(html);
   const literal = $('.card-text-name').first().text().trim() || null;
 
-  // Impresiones internacionales (orden cronológico): la más reciente da el nombre
-  // oficial en inglés (la traducción literal puede diferir, ej. "Boss's Command" vs "Boss's Orders")
+  // International prints (chronological order): the most recent gives the official
+  // English name (the literal translation may differ, e.g. "Boss's Command" vs "Boss's Orders")
   const section = html.split('Int. Prints')[1]?.split('JP. Prints')[0] ?? '';
   const prints = [...section.matchAll(/href="\/cards\/en\/([A-Za-z0-9-]+)\/(\w+)"/g)];
   if (!prints.length) return { name: literal, intl: null };
-  // del set más reciente, la impresión de número más bajo (versión normal, no la rara secreta/dorada)
+  // from the most recent set, the lowest-numbered print (regular version, not the secret/gold rare)
   const lastSet = prints.at(-1)[1];
   const num = (n) => (/^\d+$/.test(n) ? Number(n) : Infinity);
   const pick = prints.filter((p) => p[1] === lastSet).sort((a, b) => num(a[2]) - num(b[2]))[0];
@@ -87,7 +87,7 @@ async function englishNameFromLimitless(rawSet, number) {
 }
 
 /**
- * @param {{id: string, name: string, alt: string}} card  nombre JP completo y nombre JP "alt" (sin set)
+ * @param {{id: string, name: string, alt: string}} card  full JP name and "alt" JP name (without set)
  * @returns {Promise<{en: string|null, set: string|null, number: string|null, intl: object|null}>}
  */
 export async function translateCard(card) {
@@ -115,7 +115,7 @@ export async function translateCard(card) {
     }
   } catch (e) {
     result.error = e.message;
-    // errores transitorios: no se cachean para reintentar en la próxima ejecución
+    // transient errors: not cached so they are retried on the next run
     if (!/HTTP 404/.test(e.message)) return result;
   }
   c[card.id] = result;
