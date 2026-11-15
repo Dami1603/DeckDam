@@ -1,0 +1,23 @@
+{
+  "name": "deckdam",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Busca una carta de Pokémon TCG y descubre en qué mazos de Limitless y Pokecabook encaja.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "scrape": "node scraper/index.js",
+    "scrape:limitless": "node scraper/index.js --only=limitless",
+    "scrape:pokecabook": "node scraper/index.js --only=pokecabook",
+    "scrape:limitless-jp": "node scraper/index.js --only=limitless-jp",
+    "scrape:pokedata": "node scraper/index.js --only=pokedata"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "express": "^4.22.3"
+  }
+}

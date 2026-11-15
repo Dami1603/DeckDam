@@ -1,0 +1,422 @@
+// Traducciones de la interfaz (inglés por defecto, español opcional).
+// Cada entrada es un texto o una función (vars) => texto para plurales y valores.
+
+export const LANGS = ['en', 'es'];
+const STORAGE_KEY = 'ddpk.ui';
+
+let current = 'en';
+try {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (LANGS.includes(saved)) current = saved;
+} catch {}
+
+export const getLang = () => current;
+export function setLang(lang) {
+  if (!LANGS.includes(lang)) return;
+  current = lang;
+  try {
+    localStorage.setItem(STORAGE_KEY, lang);
+  } catch {}
+}
+
+/** Locale para fechas y números. */
+export const locale = () => (current === 'es' ? 'es' : 'en-US');
+
+const plural = (n, one, many) => (n === 1 ? one : many);
+
+const STRINGS = {
+  en: {
+    // ---- general
+    'seo.home': 'DeckDam — Which Pokémon TCG deck does your card fit?',
+    'seo.search': (v) => `“${v.q}” — Pokémon TCG card search | DeckDam`,
+    'seo.card': (v) => `${v.name} — Decks it fits | DeckDam`,
+    'seo.cardDesc': (v) => `${v.name} appears in ${v.n} competitive Pokémon TCG lists across ${v.a} archetypes. See the decks, copies and partners it is played with.`,
+    'seo.gallery': 'Pokémon TCG deck gallery — recent tournament lists | DeckDam',
+    'seo.desc': 'Search any Standard-legal Pokémon TCG card and see which competitive archetypes play it, how many copies and with which partners.',
+    'nav.search': 'Search card',
+    'nav.decks': 'Deck gallery',
+    'nav.home': 'Home',
+    'lang.label': 'Language',
+    'theme.toggle': 'Switch light / dark mode',
+    'img.none': 'No image',
+    back: '← Back',
+    'chip.loading': 'Loading…',
+    'chip.title': 'Deck data',
+    'chip.empty': 'No decks — run npm run scrape',
+    'chip.noServer': 'Server has no data',
+    'chip.updating': 'Updating decks…',
+    'chip.summary': (v) => `${v.decks} lists · ${v.archetypes} archetypes · ${v.ago}`,
+    'chip.rest': (v) => `lists · ${v.archetypes} archetypes · ${v.ago}`,
+    'chip.source': (v) => `${v.source}: ${v.decks} lists (${v.date})`,
+    'chip.auto': (v) => `Automatic update every ${v.hours} h`,
+    'chip.next': (v) => `Next: ${v.date}`,
+    'chip.lastFail': (v) => `Last attempt: ${v.msg}`,
+    'toast.updated': 'Decks updated',
+    'ago.minutes': 'minutes ago',
+    'ago.hours': (v) => `${v.n} h ago`,
+    'ago.days': (v) => `${v.n} ${plural(v.n, 'day', 'days')} ago`,
+    lists: (v) => `${v.n} ${plural(v.n, 'list', 'lists')}`,
+
+    // ---- búsqueda
+    'hero.eyebrow': 'Pokémon TCG · Deck finder',
+    'hero.title': 'Which deck does <em>your card fit</em>?',
+    'hero.text':
+      'Search any Standard-legal card and find out which competitive archetypes from official tournaments (Limitless and Pokedata), the Japanese City League and Pokecabook play it.',
+    'search.placeholder': 'e.g. Dragapult ex, Ultra Ball, Charizard…',
+    'search.aria': 'Card name',
+    'search.searching': (v) => `Searching “${v.q}”…`,
+    'search.error': 'Could not reach TCGdex',
+    'search.errorText': (v) => `${v.msg}. Check your connection and try again.`,
+    'search.none': 'No results',
+    'search.noneText': 'Try another name or switch the language (EN / ES) at the top.',
+    'search.count': (v) => `${v.n}${v.more ? '+' : ''} Standard-legal ${plural(v.n, 'card', 'cards')}`,
+    'search.played': (v) =>
+      `${v.n === 1 ? '1 print is' : `${v.n} prints are`} played in competitive decks and ${v.n === 1 ? 'shows' : 'show'} first (same card = same name and attacks).`,
+    'search.notPlayed': 'None of them appear in current lists, but you can check each one.',
+    'search.esNote': 'Spanish search: opening a card looks up its English name in the decks.',
+    'search.inLists': (v) => `In ${v.n} ${plural(v.n, 'list', 'lists')}`,
+    'search.jpTitle': 'Japan-only cards',
+    'search.jpText': 'Already played in Japan but not released in English yet (text translated by Limitless).',
+    'card.jpOnly': '🇯🇵 Japan only',
+    'card.jpNote': 'Not released in English yet: text translated from the Japanese card by Limitless.',
+    'card.viewLimitless': 'View on Limitless ↗',
+    'legal.jp': '✓ Standard legal (Japan)',
+
+    // ---- portada
+    'intro.how': 'How it works',
+    'intro.howText': '1. Search your card · 2. Pick the print · 3. See which archetypes play it and how many copies.',
+    'intro.lists': 'Lists analyzed',
+    'intro.archetypes': 'Archetypes',
+    'carousel.title': 'Most played',
+    'carousel.text': 'Cards that appear in the most lists of the current format. Tap one to see which decks it fits.',
+    'carousel.aria': 'Most played cards',
+    'carousel.type': 'Card type',
+    'carousel.prev': 'Previous',
+    'carousel.next': 'Next',
+    'tab.all': 'All',
+    'tab.pokemon': 'Pokémon',
+    'tab.trainer': 'Trainers',
+
+    // ---- carta
+    'card.notFound': 'Card not found',
+    'card.inEnglish': (v) => `In English: ${v.name}`,
+    'card.noTcgdex': 'Not in TCGdex (possibly a Japan-only card). Image taken from the deck.',
+    'legal.yes': '✓ Standard legal',
+    'legal.no': '✗ Not Standard legal',
+    'fact.set': 'Set',
+    'fact.category': 'Category',
+    'fact.hp': 'HP',
+    'fact.type': 'Type',
+    'fact.rarity': 'Rarity',
+    'fact.regulation': 'Regulation',
+    'fact.illustrator': 'Illustrator',
+    'stat.appears': 'Appears in',
+    'stat.of': (v) => `of ${v.n} lists`,
+    'stat.archetypes': 'Archetypes',
+    'stat.copies': 'Average copies',
+    'verdict.best': (v) => `Fits best in <b>${v.name}</b>: it appears in ${v.rate} of its lists with ~${v.copies} ${plural(v.copies, 'copy', 'copies')}.`,
+    'verdict.also': (v) => ` It is also a regular piece in ${v.list}.`,
+    'verdict.flex': ' It is used as a flexible card across many different archetypes.',
+    'partners.title': 'Often played with',
+    'partners.text': 'Cards found in most of its lists that are much more common there than in the overall meta. Generic staples like Boss’s Orders or Ultra Ball are left out.',
+    'partners.rate': (v) => `In ${v.rate} of its lists`,
+    'partners.base': (v) => `${v.base} in the overall meta`,
+    'partners.none': 'It is played in very different decks: no fixed partners beyond the usual staples.',
+    'arch.title': 'Archetypes it fits',
+    'arch.text': '% of each archetype’s lists that include this exact card. Tap one to filter.',
+    'arch.sub': (v) => `${v.with} of ${v.total} lists · ${v.copies} ${plural(v.copies, 'copy', 'copies')} on average`,
+    'arch.share': (v) => ` · ${v.share} of the meta`,
+    'arch.inclusion': 'inclusion',
+    'lists.title': (v) => `Lists that play it (${v.n})`,
+    'lists.of': (v) => `Lists of ${v.name}`,
+    'lists.text': 'Sorted by date. The number shows the copies.',
+    'variants.other': (v) => `Other versions of “${v.name}”`,
+    'variants.played': (v) => `Versions of “${v.name}” that are played`,
+    'variants.text': 'Same name but different attacks: they are different cards and are counted separately.',
+    'variants.trainer': 'Trainer / Energy',
+    'variants.in': (v) => `In ${v.n} ${plural(v.n, 'list', 'lists')} →`,
+    'empty.version': (v) => `No current list plays this version of “${v.name}”`,
+    'empty.versionText': (v) =>
+      `It does not appear in the ${v.n} recent lists analyzed${v.variants ? ', but other versions with the same name are played.' : '. It may be an off-rotation or niche card.'}`,
+    'empty.maybe': 'Did you mean?',
+
+    // ---- texto de la carta
+    'ct.ability': 'Ability',
+    'ct.attack': 'Attack',
+    'ct.weakness': 'Weakness',
+    'ct.resistance': 'Resistance',
+    'ct.retreat': 'Retreat',
+    'type.G': 'Grass', 'type.R': 'Fire', 'type.W': 'Water', 'type.L': 'Lightning', 'type.P': 'Psychic',
+    'type.F': 'Fighting', 'type.D': 'Darkness', 'type.M': 'Metal', 'type.C': 'Colorless', 'type.N': 'Dragon', 'type.Y': 'Fairy',
+
+    // ---- precio
+    'price.title': 'Price (TCGplayer)',
+    'price.market': 'Market',
+    'price.low': 'Low',
+    'price.updated': (v) => `Updated ${v.date}`,
+    'price.buy': 'View on TCGplayer ↗',
+    'price.normal': 'Normal',
+    'price.holofoil': 'Holo',
+    'price.reverse-holofoil': 'Reverse holo',
+    'price.1st-edition': '1st edition',
+    'price.1st-edition-holofoil': '1st edition holo',
+    'price.unlimited': 'Unlimited',
+    'price.unlimited-holofoil': 'Unlimited holo',
+
+    // ---- mazos
+    'section.pokemon': 'Pokémon',
+    'section.trainer': 'Trainers',
+    'section.energy': 'Energy',
+    'deck.openError': 'Could not open the deck',
+    'deck.close': 'Close',
+    'deck.copy': 'Copy list',
+    'deck.copied': 'List copied to clipboard',
+    'deck.copyFail': 'Could not copy',
+    'deck.record': (v) => `Record ${v.r}`,
+    'deck.cards': (v) => `${v.n} cards`,
+    'deck.cardTitle': 'Click: see which decks it fits',
+    'deck.viewLimitless': 'View on Limitless ↗',
+    'deck.viewPokedata': 'View standings on Pokedata ↗',
+    'deck.viewList': 'View list on Limitless ↗',
+    'deck.viewTournament': 'View tournament ↗',
+    'deck.viewPokecabook': 'View on Pokecabook ↗',
+    'deck.officialJp': 'Official JP code ↗',
+    'gallery.title': 'Deck gallery',
+    'gallery.text':
+      'Recent lists from the current format: official tournaments (Limitless and Pokedata), the Japanese City League (Limitless) and the Japanese meta from Pokecabook (translated to English).',
+    'gallery.source': 'Source',
+    'gallery.date': 'Date',
+    'gallery.sort': 'Sort',
+    'sort.newest': 'Newest',
+    'sort.rare': 'Rarest first',
+    'sort.popular': 'Most played',
+    'deck.unique': 'Unique',
+    'deck.rare': (v) => `Rare · ${v.n} lists`,
+    'gallery.variants': (v) => `${v.n} variants`,
+    'gallery.allFamily': (v) => `All ${v.name}`,
+    'date.any': 'Any date',
+    'date.7': 'Last 7 days',
+    'date.30': 'Last 30 days',
+    'date.90': 'Last 90 days',
+    'date.custom': 'Custom',
+    'date.from': 'From',
+    'date.to': 'To',
+    'gallery.all': 'All',
+    'gallery.filter': 'Filter by archetype, player, tournament or card…',
+    'gallery.error': 'Could not load the decks',
+    'gallery.none': 'No decks',
+    'gallery.noMatch': 'No deck matches the filters.',
+    'gallery.noData': 'No data yet. Run <code>npm run scrape</code> on the server.',
+    'gallery.more': (v) => `Load more (${v.n})`,
+  },
+
+  es: {
+    'seo.home': 'DeckDam — ¿En qué mazo de Pokémon TCG encaja tu carta?',
+    'seo.search': (v) => `“${v.q}” — Búsqueda de cartas de Pokémon TCG | DeckDam`,
+    'seo.card': (v) => `${v.name} — Mazos donde encaja | DeckDam`,
+    'seo.cardDesc': (v) => `${v.name} aparece en ${v.n} listas competitivas de Pokémon TCG en ${v.a} arquetipos. Mira los mazos, las copias y las cartas con las que se juega.`,
+    'seo.gallery': 'Galería de mazos de Pokémon TCG — listas recientes de torneos | DeckDam',
+    'seo.desc': 'Busca cualquier carta de Pokémon TCG legal en Standard y descubre qué arquetipos competitivos la juegan, con cuántas copias y con qué cartas.',
+    'nav.search': 'Buscar carta',
+    'nav.decks': 'Galería de mazos',
+    'nav.home': 'Inicio',
+    'lang.label': 'Idioma',
+    'theme.toggle': 'Cambiar modo claro / oscuro',
+    'img.none': 'Sin imagen',
+    back: '← Volver',
+    'chip.loading': 'Cargando…',
+    'chip.title': 'Datos de mazos',
+    'chip.empty': 'Sin mazos — ejecuta npm run scrape',
+    'chip.noServer': 'Servidor sin datos',
+    'chip.updating': 'Actualizando mazos…',
+    'chip.summary': (v) => `${v.decks} listas · ${v.archetypes} arquetipos · ${v.ago}`,
+    'chip.rest': (v) => `listas · ${v.archetypes} arquetipos · ${v.ago}`,
+    'chip.source': (v) => `${v.source}: ${v.decks} listas (${v.date})`,
+    'chip.auto': (v) => `Actualización automática cada ${v.hours} h`,
+    'chip.next': (v) => `Próxima: ${v.date}`,
+    'chip.lastFail': (v) => `Último intento: ${v.msg}`,
+    'toast.updated': 'Mazos actualizados',
+    'ago.minutes': 'hace minutos',
+    'ago.hours': (v) => `hace ${v.n} h`,
+    'ago.days': (v) => `hace ${v.n} ${plural(v.n, 'día', 'días')}`,
+    lists: (v) => `${v.n} ${plural(v.n, 'lista', 'listas')}`,
+
+    'hero.eyebrow': 'Pokémon TCG · Buscador de mazos',
+    'hero.title': '¿En qué mazo <em>encaja tu carta</em>?',
+    'hero.text':
+      'Busca cualquier carta legal en Standard y descubre qué arquetipos competitivos de torneos oficiales (Limitless y Pokedata), de la City League japonesa y de Pokecabook la juegan.',
+    'search.placeholder': 'Ej: Dragapult ex, Ultra Ball, Charizard…',
+    'search.aria': 'Nombre de la carta',
+    'search.searching': (v) => `Buscando “${v.q}”…`,
+    'search.error': 'No se pudo consultar TCGdex',
+    'search.errorText': (v) => `${v.msg}. Revisa tu conexión e inténtalo de nuevo.`,
+    'search.none': 'Sin resultados',
+    'search.noneText': 'Prueba con otro nombre o cambia el idioma (EN / ES) arriba.',
+    'search.count': (v) => `${v.n}${v.more ? '+' : ''} ${plural(v.n, 'carta legal', 'cartas legales')} en Standard`,
+    'search.played': (v) =>
+      `${v.n === 1 ? '1 impresión se juega' : `${v.n} impresiones se juegan`} en mazos competitivos y ${v.n === 1 ? 'aparece' : 'aparecen'} primero (misma carta = mismo nombre y ataques).`,
+    'search.notPlayed': 'Ninguna aparece en las listas actuales, pero puedes revisar cada una.',
+    'search.esNote': 'Búsqueda en español: al abrir una carta se busca su nombre en inglés en los mazos.',
+    'search.inLists': (v) => `En ${v.n} ${plural(v.n, 'lista', 'listas')}`,
+    'search.jpTitle': 'Cartas solo de Japón',
+    'search.jpText': 'Ya se juegan en Japón pero todavía no salieron en inglés (texto traducido por Limitless).',
+    'card.jpOnly': '🇯🇵 Solo Japón',
+    'card.jpNote': 'Todavía no salió en inglés: texto traducido de la carta japonesa por Limitless.',
+    'card.viewLimitless': 'Ver en Limitless ↗',
+    'legal.jp': '✓ Legal en Standard (Japón)',
+
+    'intro.how': 'Cómo funciona',
+    'intro.howText': '1. Busca tu carta · 2. Elige la impresión · 3. Mira en qué arquetipos aparece y con cuántas copias.',
+    'intro.lists': 'Listas analizadas',
+    'intro.archetypes': 'Arquetipos',
+    'carousel.title': 'Las más jugadas',
+    'carousel.text': 'Cartas presentes en más listas del formato vigente. Toca una para ver en qué mazos encaja.',
+    'carousel.aria': 'Cartas más jugadas',
+    'carousel.type': 'Tipo de carta',
+    'carousel.prev': 'Anteriores',
+    'carousel.next': 'Siguientes',
+    'tab.all': 'Todas',
+    'tab.pokemon': 'Pokémon',
+    'tab.trainer': 'Entrenadores',
+
+    'card.notFound': 'No se encontró la carta',
+    'card.inEnglish': (v) => `En inglés: ${v.name}`,
+    'card.noTcgdex': 'Sin ficha en TCGdex (posible carta exclusiva de Japón). Imagen tomada del mazo.',
+    'legal.yes': '✓ Legal en Standard',
+    'legal.no': '✗ Fuera de Standard',
+    'fact.set': 'Set',
+    'fact.category': 'Categoría',
+    'fact.hp': 'PS',
+    'fact.type': 'Tipo',
+    'fact.rarity': 'Rareza',
+    'fact.regulation': 'Regulación',
+    'fact.illustrator': 'Ilustrador',
+    'stat.appears': 'Aparece en',
+    'stat.of': (v) => `de ${v.n} listas`,
+    'stat.archetypes': 'Arquetipos',
+    'stat.copies': 'Copias promedio',
+    'verdict.best': (v) => `Encaja mejor en <b>${v.name}</b>: aparece en ${v.rate} de sus listas con ~${v.copies} ${plural(v.copies, 'copia', 'copias')}.`,
+    'verdict.also': (v) => ` También es pieza habitual en ${v.list}.`,
+    'verdict.flex': ' Se usa como carta flexible en muchos arquetipos distintos.',
+    'partners.title': 'Se juega junto a',
+    'partners.text': 'Cartas presentes en la mayoría de sus listas y mucho más comunes ahí que en el meta en general. Se dejan afuera las staples genéricas como Boss’s Orders o Ultra Ball.',
+    'partners.rate': (v) => `En el ${v.rate} de sus listas`,
+    'partners.base': (v) => `${v.base} en el meta general`,
+    'partners.none': 'Se juega en mazos muy distintos: no tiene compañeras fijas más allá de las staples habituales.',
+    'arch.title': 'Arquetipos donde encaja',
+    'arch.text': '% de listas de cada arquetipo que incluyen esta carta exacta. Toca uno para filtrar.',
+    'arch.sub': (v) => `${v.with} de ${v.total} listas · ${v.copies} ${plural(v.copies, 'copia', 'copias')} de media`,
+    'arch.share': (v) => ` · ${v.share} del meta`,
+    'arch.inclusion': 'inclusión',
+    'lists.title': (v) => `Listas que la usan (${v.n})`,
+    'lists.of': (v) => `Listas de ${v.name}`,
+    'lists.text': 'Ordenadas por fecha. El número indica las copias.',
+    'variants.other': (v) => `Otras versiones de “${v.name}”`,
+    'variants.played': (v) => `Versiones que sí se juegan de “${v.name}”`,
+    'variants.text': 'Mismo nombre pero distintos ataques: son cartas diferentes y se cuentan por separado.',
+    'variants.trainer': 'Entrenador / Energía',
+    'variants.in': (v) => `En ${v.n} ${plural(v.n, 'lista', 'listas')} →`,
+    'empty.version': (v) => `Ninguna lista actual juega esta versión de “${v.name}”`,
+    'empty.versionText': (v) =>
+      `No aparece en las ${v.n} listas recientes analizadas${v.variants ? ', pero hay otras versiones con el mismo nombre que sí se juegan.' : '. Puede ser una carta fuera de rotación o de nicho.'}`,
+    'empty.maybe': '¿Quizás buscabas?',
+
+    'ct.ability': 'Habilidad',
+    'ct.attack': 'Ataque',
+    'ct.weakness': 'Debilidad',
+    'ct.resistance': 'Resistencia',
+    'ct.retreat': 'Retirada',
+    'type.G': 'Planta', 'type.R': 'Fuego', 'type.W': 'Agua', 'type.L': 'Rayo', 'type.P': 'Psíquico',
+    'type.F': 'Lucha', 'type.D': 'Oscuridad', 'type.M': 'Metal', 'type.C': 'Incolora', 'type.N': 'Dragón', 'type.Y': 'Hada',
+
+    'price.title': 'Precio (TCGplayer)',
+    'price.market': 'Mercado',
+    'price.low': 'Mínimo',
+    'price.updated': (v) => `Actualizado ${v.date}`,
+    'price.buy': 'Ver en TCGplayer ↗',
+    'price.normal': 'Normal',
+    'price.holofoil': 'Holo',
+    'price.reverse-holofoil': 'Reverse holo',
+    'price.1st-edition': '1.ª edición',
+    'price.1st-edition-holofoil': '1.ª edición holo',
+    'price.unlimited': 'Unlimited',
+    'price.unlimited-holofoil': 'Unlimited holo',
+
+    'section.pokemon': 'Pokémon',
+    'section.trainer': 'Entrenadores',
+    'section.energy': 'Energías',
+    'deck.openError': 'No se pudo abrir el mazo',
+    'deck.close': 'Cerrar',
+    'deck.copy': 'Copiar lista',
+    'deck.copied': 'Lista copiada al portapapeles',
+    'deck.copyFail': 'No se pudo copiar',
+    'deck.record': (v) => `Récord ${v.r}`,
+    'deck.cards': (v) => `${v.n} cartas`,
+    'deck.cardTitle': 'Clic: ver en qué mazos encaja',
+    'deck.viewLimitless': 'Ver en Limitless ↗',
+    'deck.viewPokedata': 'Ver standings en Pokedata ↗',
+    'deck.viewList': 'Ver lista en Limitless ↗',
+    'deck.viewTournament': 'Ver torneo ↗',
+    'deck.viewPokecabook': 'Ver en Pokecabook ↗',
+    'deck.officialJp': 'Código oficial JP ↗',
+    'gallery.title': 'Galería de mazos',
+    'gallery.text':
+      'Listas recientes del formato vigente: torneos oficiales (Limitless y Pokedata), City League de Japón (Limitless) y metajuego japonés de Pokecabook (traducido al inglés).',
+    'gallery.source': 'Fuente',
+    'gallery.date': 'Fecha',
+    'gallery.sort': 'Orden',
+    'sort.newest': 'Más recientes',
+    'sort.rare': 'Más raros primero',
+    'sort.popular': 'Más jugados',
+    'deck.unique': 'Única',
+    'deck.rare': (v) => `Raro · ${v.n} listas`,
+    'gallery.variants': (v) => `${v.n} variantes`,
+    'gallery.allFamily': (v) => `Todos los ${v.name}`,
+    'date.any': 'Cualquier fecha',
+    'date.7': 'Últimos 7 días',
+    'date.30': 'Últimos 30 días',
+    'date.90': 'Últimos 90 días',
+    'date.custom': 'Personalizado',
+    'date.from': 'Desde',
+    'date.to': 'Hasta',
+    'gallery.all': 'Todas',
+    'gallery.filter': 'Filtrar por arquetipo, jugador, torneo o carta…',
+    'gallery.error': 'No se pudieron cargar los mazos',
+    'gallery.none': 'Sin mazos',
+    'gallery.noMatch': 'Ningún mazo coincide con los filtros.',
+    'gallery.noData': 'Aún no hay datos. Ejecuta <code>npm run scrape</code> en el servidor.',
+    'gallery.more': (v) => `Cargar más (${v.n})`,
+  },
+};
+
+/** Texto traducido. Si falta en el idioma actual, cae al inglés y luego a la clave. */
+export function t(key, vars = {}) {
+  const entry = STRINGS[current]?.[key] ?? STRINGS.en[key];
+  if (entry == null) return key;
+  return typeof entry === 'function' ? entry(vars) : entry;
+}
+
+// ---- textos fijos de index.html (pie de página, etc.), como HTML
+const LINK = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+const STATIC_HTML = {
+  en: {
+    'footer.sources': `Decks from ${LINK('https://limitlesstcg.com/decks', 'Limitless TCG')} (international tournaments and ${LINK('https://limitlesstcg.com/tournaments/jp', 'City League JP')}), ${LINK('https://pokecabook.com/archives/1417', 'Pokecabook')} (translated from Japanese) and ${LINK('https://www.pokedata.ovh/standings', 'Pokedata')} (official tournaments) · Cards via ${LINK('https://tcgdex.dev', 'TCGdex')}, prices from TCGplayer. Non-commercial fan project, not affiliated with The Pokémon Company.`,
+    'footer.credits': `Energy symbols and Ability label: ${LINK('https://www.deviantart.com/aschefield/art/Pokemon-SV---SymbolSheet-1164787196', '“Pokemon SV - SymbolSheet”')} by ${LINK('https://www.deviantart.com/aschefield', 'aschefield')}, licensed under ${LINK('https://creativecommons.org/licenses/by-nc-nd/3.0/', 'CC BY-NC-ND 3.0')} (used unmodified). Original symbols © Pokémon / Nintendo / Creatures / GAME FREAK.`,
+  },
+  es: {
+    'footer.sources': `Mazos de ${LINK('https://limitlesstcg.com/decks', 'Limitless TCG')} (torneos internacionales y ${LINK('https://limitlesstcg.com/tournaments/jp', 'City League JP')}), ${LINK('https://pokecabook.com/archives/1417', 'Pokecabook')} (traducido del japonés) y ${LINK('https://www.pokedata.ovh/standings', 'Pokedata')} (torneos oficiales) · Cartas vía ${LINK('https://tcgdex.dev', 'TCGdex')}, precios de TCGplayer. Proyecto de fans sin fines comerciales, sin afiliación con The Pokémon Company.`,
+    'footer.credits': `Símbolos de energía y etiqueta de habilidad: ${LINK('https://www.deviantart.com/aschefield/art/Pokemon-SV---SymbolSheet-1164787196', '“Pokemon SV - SymbolSheet”')} por ${LINK('https://www.deviantart.com/aschefield', 'aschefield')}, bajo licencia ${LINK('https://creativecommons.org/licenses/by-nc-nd/3.0/', 'CC BY-NC-ND 3.0')} (usada sin modificaciones). Símbolos originales © Pokémon / Nintendo / Creatures / GAME FREAK.`,
+  },
+};
+
+/** Aplica el idioma a los elementos fijos de la página ([data-i18n] texto, [data-i18n-html] HTML). */
+export function applyStatic(root = document) {
+  document.documentElement.lang = current;
+  root.querySelectorAll('[data-i18n]').forEach((el) => (el.textContent = t(el.dataset.i18n)));
+  root.querySelectorAll('[data-i18n-html]').forEach((el) => {
+    const html = STATIC_HTML[current]?.[el.dataset.i18nHtml] ?? STATIC_HTML.en[el.dataset.i18nHtml];
+    if (html) el.innerHTML = html;
+  });
+  root.querySelectorAll('[data-i18n-title]').forEach((el) => (el.title = t(el.dataset.i18nTitle)));
+  root.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+}

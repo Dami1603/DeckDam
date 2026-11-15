@@ -1,0 +1,16 @@
+# Dependencias
+node_modules/
+
+# Datos generados por el scraper (mazos, traducciones, caché, logs): no se publican
+data/
+
+# Frontend privado: no se incluye en el repositorio público
+public/index.html
+public/styles.css
+
+# Varios
+*.log
+*.tmp
+.env
+.DS_Store
+Thumbs.db
