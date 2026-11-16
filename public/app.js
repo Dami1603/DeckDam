@@ -77,6 +77,13 @@ document.addEventListener(
   (e) => {
     const img = e.target;
     if (!(img instanceof HTMLImageElement)) return;
+    if (img.dataset.optional !== undefined) return img.remove(); // decorative (e.g. set symbol): just hide it
+    if (img.dataset.textFallback !== undefined) {
+      const span = document.createElement('span');
+      span.className = 'set-logo-text';
+      span.textContent = img.alt;
+      return img.replaceWith(span);
+    }
     if (img.dataset.fallback) {
       img.src = img.dataset.fallback;
       delete img.dataset.fallback;
@@ -287,6 +294,8 @@ const routes = [
   [/^\/k\/(.+)$/, (m, p, alive) => viewCard({ key: decodeURIComponent(m[1]) }, p, alive)],
   [/^\/(?:name|nombre)\/(.+)$/, (m) => redirectByName(decodeURIComponent(m[1]))],
   [/^\/(?:decks|mazos)$/, viewDecks],
+  [/^\/sets$/, viewSetList],
+  [/^\/sets\/([^/]+)$/, (m, p, alive) => viewSet(decodeURIComponent(m[1]), p, alive)],
 ];
 
 function parseHash() {
@@ -300,8 +309,8 @@ async function router() {
   const { path, params } = parseHash();
   const token = ++renderToken;
   document.querySelectorAll('[data-nav]').forEach((a) => {
-    const isDecks = /^\/(decks|mazos)/.test(path);
-    a.classList.toggle('active', a.dataset.nav === (isDecks ? 'decks' : 'search'));
+    const section = /^\/(decks|mazos)/.test(path) ? 'decks' : /^\/sets/.test(path) ? 'sets' : 'search';
+    a.classList.toggle('active', a.dataset.nav === section);
   });
   if (dialog.open) dialog.close();
   for (const [re, fn] of routes) {
@@ -1112,6 +1121,212 @@ function decklistText(d) {
 dialog.addEventListener('click', (e) => {
   if (e.target === dialog) dialog.close(); // click on the backdrop
 });
+
+// ---------------------------------------------------------------- view: expansions
+// Minimum Standard-legal cards for a set to be listed (drops sets that only show up through a few reprints,
+// such as basic Energy or old trainer kits).
+const SET_MIN_LEGAL = 20;
+
+/** Standard-legal expansions (TCGdex), newest first, with their details. */
+async function loadStandardSets() {
+  if (loadStandardSets.cache) return loadStandardSets.cache;
+  loadStandardSets.cache = (async () => {
+    const [legal, sets] = await Promise.all([getJSON(`${TCGDEX}/en/cards?legal.standard=true`), loadSets('en')]);
+    const count = new Map();
+    for (const c of legal) count.set(setIdOf(c), (count.get(setIdOf(c)) ?? 0) + 1);
+    const ids = [...count.entries()].filter(([id, n]) => n >= SET_MIN_LEGAL && !sets.get(id)?.pocket).map(([id]) => id);
+    for (const id of STANDARD_EXTRA_SETS) if (!ids.includes(id)) ids.push(id);
+    const details = await fetchSetDetails(ids);
+    return ids
+      .map((id) => details.get(id))
+      .filter(Boolean)
+      .sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? '') || (sets.get(b.id)?.order ?? 0) - (sets.get(a.id)?.order ?? 0));
+  })();
+  loadStandardSets.cache.catch(() => (loadStandardSets.cache = null));
+  return loadStandardSets.cache;
+}
+
+/** Set details (with its card list) with limited concurrency. */
+async function fetchSetDetails(ids, lang = 'en', limit = 6) {
+  const out = new Map();
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, ids.length) }, async () => {
+      while (i < ids.length) {
+        const id = ids[i++];
+        try {
+          out.set(id, await getJSON(`${TCGDEX}/${lang}/sets/${encodeURIComponent(id)}`));
+        } catch {}
+      }
+    }),
+  );
+  return out;
+}
+
+const setLogo = (set) => (set?.logo ? `${set.logo}.png` : null);
+
+async function viewSetList(_m, _params, alive) {
+  setMeta(t('seo.sets'));
+  app.innerHTML = `
+    <div class="section-head" style="margin-top:8px">
+      <div>
+        <h2 style="font-size:30px">${t('sets.title')}</h2>
+        <p>${t('sets.text')}</p>
+      </div>
+    </div>
+    <div class="set-grid" id="setGrid">${'<div class="skeleton" style="height:190px"></div>'.repeat(8)}</div>`;
+
+  let sets;
+  let localNames = new Map();
+  try {
+    sets = await loadStandardSets();
+    if (getLang() !== 'en') {
+      const list = await getJSON(`${TCGDEX}/${getLang()}/sets`).catch(() => []);
+      localNames = new Map(list.map((s) => [s.id, s.name]));
+    }
+  } catch (e) {
+    if (!alive()) return;
+    document.getElementById('setGrid').innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>${t('sets.error')}</h3><p>${esc(e.message)}</p></div>`;
+    return;
+  }
+  if (!alive()) return;
+  document.getElementById('setGrid').innerHTML = sets
+    .map((s) => {
+      const name = localNames.get(s.id) ?? s.name;
+      return `
+      <a class="set-tile" href="#/sets/${encodeURIComponent(s.id)}" title="${esc(name)}">
+        <div class="set-logo">${setLogo(s) ? `<img src="${esc(setLogo(s))}" alt="${esc(name)}" loading="lazy" data-text-fallback>` : `<span class="set-logo-text">${esc(name)}</span>`}</div>
+        <div class="set-body">
+          <div class="set-name">${s.symbol ? `<img class="set-symbol" src="${esc(s.symbol)}.png" alt="" loading="lazy" data-optional>` : ''}${esc(name)}</div>
+          <div class="set-meta">
+            ${s.abbreviation?.official ? `<span class="set-code">${esc(s.abbreviation.official)}</span>` : ''}
+            ${s.releaseDate ? `<span>${fmtDate(s.releaseDate)}</span>` : ''}
+            <span>${t('sets.cards', { n: s.cardCount?.total ?? s.cards?.length ?? 0 })}</span>
+          </div>
+        </div>
+      </a>`;
+    })
+    .join('');
+}
+
+async function viewSet(id, params, alive) {
+  const state0 = { sort: params.get('sort') ?? '', filter: params.get('filter') ?? '' };
+  app.innerHTML = `
+    <a class="back" href="#/sets">${t('set.back')}</a>
+    <div class="set-hero skeleton" style="height:150px"></div>
+    <div class="card-grid" style="margin-top:24px">${'<div class="skeleton sk-card"></div>'.repeat(12)}</div>`;
+
+  let set;
+  let local = null;
+  try {
+    [set, local] = await Promise.all([
+      getJSON(`${TCGDEX}/en/sets/${encodeURIComponent(id)}`),
+      getLang() !== 'en' ? getJSON(`${TCGDEX}/${getLang()}/sets/${encodeURIComponent(id)}`).catch(() => null) : null,
+    ]);
+  } catch (e) {
+    if (!alive()) return;
+    app.innerHTML = `<a class="back" href="#/sets">${t('set.back')}</a><div class="empty"><h3>${t('sets.error')}</h3><p>${esc(e.message)}</p></div>`;
+    return;
+  }
+  if (!alive()) return;
+  const setName = local?.name ?? set.name;
+  setMeta(t('seo.set', { name: setName }));
+  const localCards = new Map((local?.cards ?? []).map((c) => [c.localId, c]));
+
+  // usage per card (exact identity, like the search): Trainers/Energy by name, Pokémon by name + attacks
+  const used = await loadUsedCards();
+  const cards = set.cards.map((c, i) => ({ ...c, order: i, display: localCards.get(c.localId) ?? c, used: null }));
+  const pending = [];
+  for (const c of cards) {
+    const byName = used.byKey.get(cardKey(c.name));
+    if (byName) c.used = byName;
+    else if (used.byName.has(normName(c.name))) pending.push(c);
+  }
+  const heroHtml = `
+    <div class="set-hero${setLogo(set) ? '' : ' no-logo'}">
+      ${setLogo(set) ? `<div class="set-hero-logo"><img src="${esc(setLogo(set))}" alt="${esc(setName)}" data-optional></div>` : ''}
+      <div>
+        <h1>${esc(setName)}</h1>
+        <div class="set-meta">
+          ${set.serie?.name ? `<span>${esc(set.serie.name)}</span>` : ''}
+          ${set.abbreviation?.official ? `<span class="set-code">${esc(set.abbreviation.official)}</span>` : ''}
+          ${set.releaseDate ? `<span>${t('sets.released', { date: fmtDate(set.releaseDate) })}</span>` : ''}
+          <span>${t('sets.cards', { n: set.cards.length })}</span>
+        </div>
+        <p class="set-summary" id="setSummary">${t('set.checking', { n: pending.length })}</p>
+      </div>
+    </div>`;
+  app.innerHTML = `
+    <a class="back" href="#/sets">${t('set.back')}</a>
+    ${heroHtml}
+    <div class="toolbar" style="margin-top:20px">
+      <div class="seg" role="group" aria-label="${esc(t('gallery.sort'))}">
+        <button type="button" data-ssort="" aria-pressed="${!state0.sort}">${t('set.sortNumber')}</button>
+        <button type="button" data-ssort="played" aria-pressed="${state0.sort === 'played'}">${t('set.sortPlayed')}</button>
+      </div>
+      <div class="seg" role="group">
+        <button type="button" data-sfilter="" aria-pressed="${!state0.filter}">${t('set.filterAll')}</button>
+        <button type="button" data-sfilter="played" aria-pressed="${state0.filter === 'played'}">${t('set.filterPlayed')}</button>
+      </div>
+    </div>
+    <div class="card-grid" id="setCards">${'<div class="skeleton sk-card"></div>'.repeat(12)}</div>`;
+
+  await withFallbackImages(cards.map((c) => c.display));
+  const draw = () => {
+    let list = cards;
+    if (state0.filter === 'played') list = list.filter((c) => c.used);
+    if (state0.sort === 'played') list = [...list].sort((a, b) => (b.used?.decks ?? 0) - (a.used?.decks ?? 0) || a.order - b.order);
+    const grid = document.getElementById('setCards');
+    if (!grid) return;
+    grid.innerHTML = list.length
+      ? list
+          .map(
+            (c) => `
+        <button class="tcg-card" data-id="${esc(c.id)}" title="${esc(c.display.name)}">
+          <div class="img-wrap">${imgTag(tcgImg(c.display), c.display.name)}</div>
+          ${c.used ? `<span class="badge-used">${t('search.inLists', { n: c.used.decks })}</span>` : ''}
+          <div class="meta"><div class="name">${esc(c.display.name)}</div><div class="sub">#${esc(c.localId)}</div></div>
+        </button>`,
+          )
+          .join('')
+      : `<div class="empty" style="grid-column:1/-1"><h3>${t('set.none')}</h3></div>`;
+    grid.querySelectorAll('.tcg-card').forEach((b) =>
+      b.addEventListener('click', () => (location.hash = `#/card/${getLang()}/${encodeURIComponent(b.dataset.id)}`)),
+    );
+    const played = cards.filter((c) => c.used).length;
+    const summary = document.getElementById('setSummary');
+    if (summary) summary.textContent = t('set.summary', { played, total: cards.length });
+  };
+  const update = () => {
+    setQuery({ sort: state0.sort, filter: state0.filter });
+    draw();
+  };
+  app.querySelectorAll('[data-ssort]').forEach((b) =>
+    b.addEventListener('click', () => {
+      state0.sort = b.dataset.ssort;
+      app.querySelectorAll('[data-ssort]').forEach((x) => x.setAttribute('aria-pressed', x === b));
+      update();
+    }),
+  );
+  app.querySelectorAll('[data-sfilter]').forEach((b) =>
+    b.addEventListener('click', () => {
+      state0.filter = b.dataset.sfilter;
+      app.querySelectorAll('[data-sfilter]').forEach((x) => x.setAttribute('aria-pressed', x === b));
+      update();
+    }),
+  );
+  draw(); // first paint with the name matches; Pokémon are confirmed by their attacks next
+
+  if (pending.length) {
+    const details = await fetchDetails('en', pending.map((c) => c.id), 8);
+    if (!alive()) return;
+    for (const c of pending) {
+      const d = details.get(c.id);
+      if (d) c.used = used.byKey.get(tcgdexKey(d)) ?? null;
+    }
+    draw();
+  }
+}
 
 // ---------------------------------------------------------------- view: gallery
 async function viewDecks(_m, params, alive) {

@@ -30,6 +30,8 @@
 - **Full card text** with the original energy symbols: abilities, attacks (cost, damage, effect), weakness, resistance
   and retreat, plus the **TCGplayer price** in USD.
 - **Japan-only cards**: cards already played in Japan but not released in English yet, with their text translated.
+- **Expansions**: every Standard-legal set with its logo and release date; open one to see all its cards and how many
+  competitive lists play each (sortable by card number or most played).
 - **Deck gallery** with filters by source, date range and archetype family, sorting by rarity and Limitless-style
   Pokémon sprites.
 - **Automatic updates** every 12 hours from four sources, **English / Spanish** interface, **light / dark** mode, mobile
@@ -42,6 +44,8 @@
 | ![Card view: Dragapult ex with its archetypes and partners](docs/screenshots/card.png) | ![Deck gallery grouped by archetype family](docs/screenshots/gallery.png) |
 | **Deck list** | **Light mode** |
 | ![Deck dialog with the full list](docs/screenshots/deck.png) | ![Light mode card view](docs/screenshots/light.png) |
+| **Expansions** | **Expansion cards by usage** |
+| ![Standard-legal expansions](docs/screenshots/expansions.png) | ![Twilight Masquerade cards sorted by most played](docs/screenshots/expansion.png) |
 | **Spanish interface** | **Mobile** |
 | ![Home page in Spanish](docs/screenshots/spanish.png) | <img src="docs/screenshots/mobile.png" alt="Mobile card view" width="300" /> |
 
