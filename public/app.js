@@ -78,11 +78,10 @@ document.addEventListener(
     const img = e.target;
     if (!(img instanceof HTMLImageElement)) return;
     if (img.dataset.optional !== undefined) return img.remove(); // decorative (e.g. set symbol): just hide it
-    if (img.dataset.textFallback !== undefined) {
-      const span = document.createElement('span');
-      span.className = 'set-logo-text';
-      span.textContent = img.alt;
-      return img.replaceWith(span);
+    if (img.dataset.wordmark !== undefined) {
+      const tpl = document.createElement('template');
+      tpl.innerHTML = setWordmark({ name: img.alt, symbol: img.dataset.wordmark || null });
+      return img.replaceWith(tpl.content);
     }
     if (img.dataset.fallback) {
       img.src = img.dataset.fallback;
@@ -1163,7 +1162,18 @@ async function fetchSetDetails(ids, lang = 'en', limit = 6) {
   return out;
 }
 
-const setLogo = (set) => (set?.logo ? `${set.logo}.png` : null);
+// Set logo: TCGdex, or a local file in public/assets/set-logos/<id>.png for sets TCGdex has no logo for yet.
+// If neither loads, a wordmark is shown (official set symbol from Limitless + set name).
+const setLogo = (set) => (set?.logo ? `${set.logo}.png` : `/assets/set-logos/${encodeURIComponent(set.id)}.png`);
+const setSymbol = (set) =>
+  set?.abbreviation?.official ? `https://s3.limitlesstcg.com/sets/en/${encodeURIComponent(set.abbreviation.official)}_MD.png` : set?.symbol ? `${set.symbol}.png` : null;
+const setWordmark = ({ name, symbol }) => `
+  <span class="set-wordmark">
+    ${symbol ? `<img src="${esc(symbol)}" alt="" data-optional>` : ''}
+    <span>${esc(name)}</span>
+  </span>`;
+const setLogoImg = (set, name, extra = '') =>
+  `<img src="${esc(setLogo(set))}" alt="${esc(name)}" data-wordmark="${esc(setSymbol(set) ?? '')}" ${extra}>`;
 
 async function viewSetList(_m, _params, alive) {
   setMeta(t('seo.sets'));
@@ -1195,7 +1205,7 @@ async function viewSetList(_m, _params, alive) {
       const name = localNames.get(s.id) ?? s.name;
       return `
       <a class="set-tile" href="#/sets/${encodeURIComponent(s.id)}" title="${esc(name)}">
-        <div class="set-logo">${setLogo(s) ? `<img src="${esc(setLogo(s))}" alt="${esc(name)}" loading="lazy" data-text-fallback>` : `<span class="set-logo-text">${esc(name)}</span>`}</div>
+        <div class="set-logo">${setLogoImg(s, name, 'loading="lazy"')}</div>
         <div class="set-body">
           <div class="set-name">${s.symbol ? `<img class="set-symbol" src="${esc(s.symbol)}.png" alt="" loading="lazy" data-optional>` : ''}${esc(name)}</div>
           <div class="set-meta">
@@ -1243,8 +1253,8 @@ async function viewSet(id, params, alive) {
     else if (used.byName.has(normName(c.name))) pending.push(c);
   }
   const heroHtml = `
-    <div class="set-hero${setLogo(set) ? '' : ' no-logo'}">
-      ${setLogo(set) ? `<div class="set-hero-logo"><img src="${esc(setLogo(set))}" alt="${esc(setName)}" data-optional></div>` : ''}
+    <div class="set-hero">
+      <div class="set-hero-logo">${setLogoImg(set, setName)}</div>
       <div>
         <h1>${esc(setName)}</h1>
         <div class="set-meta">
