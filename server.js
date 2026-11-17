@@ -16,7 +16,7 @@ const ON_VERCEL = Boolean(process.env.VERCEL);
 const REMOTE_DATA = ON_VERCEL || Boolean(process.env.DATA_URL);
 const REMOTE_TTL_MS = Number(process.env.DATA_TTL_SECONDS ?? 300) * 1000;
 
-let db = { updatedAt: null, sources: {}, decks: [], byId: new Map(), byKey: new Map(), byName: new Map(), cards: new Map(), jpPrints: new Map() };
+let db = { updatedAt: null, sources: {}, decks: [], byId: new Map(), standard: null, expanded: null };
 let loadedMtime = 0;
 
 function loadData() {
@@ -73,16 +73,15 @@ async function loadRemote() {
   return remote.pending;
 }
 
-function ingest(raw) {
-  const byId = new Map();
+const isExpanded = (deck) => deck.format === 'expanded';
+
+/** Index of a set of decks: card usage, names, display info and Japanese prints. */
+function buildIndex(decks) {
   const byKey = new Map(); // card identity -> [{ deck, copies }]
-  const byName = new Map(); // nombre normalizado -> Set(identidades)
+  const byName = new Map(); // normalized name -> Set(identities)
   const cards = new Map(); // identity -> display info
   const jpPrints = new Map(); // identity -> Japanese print { set, number } (for Japan-only card sheets)
-
-  for (const deck of raw.decks) {
-    deck.archetypeKey = normName(deck.archetype);
-    byId.set(deck.id, deck);
+  for (const deck of decks) {
     const perDeck = new Map();
     for (const c of deck.cards) {
       const key = c.key ?? cardKey(c.name);
@@ -99,7 +98,7 @@ function ingest(raw) {
           translated: c.translated !== false,
         });
       }
-      if (c.set && c.number && (c.lang === 'jp' || deck.source === 'pokecabook') && !jpPrints.has(key)) jpPrints.set(key, { set: c.set, number: c.number });
+      if (c.set && c.number && (c.lang === 'jp' || deck.source.startsWith('pokecabook')) && !jpPrints.has(key)) jpPrints.set(key, { set: c.set, number: c.number });
       const nk = normName(c.name);
       if (!byName.has(nk)) byName.set(nk, new Set());
       byName.get(nk).add(key);
@@ -109,10 +108,29 @@ function ingest(raw) {
       byKey.get(key).push({ deck, copies });
     }
   }
-  assignFamilies(raw.decks); // archetype families (e.g. every Dragapult variant)
   for (const [key, info] of cards) info.decks = byKey.get(key).length;
-  db = { updatedAt: raw.updatedAt, sources: raw.sources ?? {}, decks: raw.decks, byId, byKey, byName, cards, jpPrints };
-  console.log(`data loaded: ${raw.decks.length} decks, ${cards.size} distinct cards`);
+  return { decks, byKey, byName, cards, jpPrints, sourceNames: new Set(decks.map((d) => d.source)) };
+}
+
+function ingest(raw) {
+  const byId = new Map();
+  for (const deck of raw.decks) {
+    deck.archetypeKey = normName(deck.archetype);
+    byId.set(deck.id, deck);
+  }
+  assignFamilies(raw.decks); // archetype families (e.g. every Dragapult variant)
+  const standard = buildIndex(raw.decks.filter((d) => !isExpanded(d)));
+  const expanded = buildIndex(raw.decks.filter(isExpanded));
+  db = { updatedAt: raw.updatedAt, sources: raw.sources ?? {}, decks: raw.decks, byId, standard, expanded };
+  console.log(`data loaded: ${standard.decks.length} Standard + ${expanded.decks.length} Expanded decks, ${standard.cards.size} + ${expanded.cards.size} distinct cards`);
+}
+
+/** Index for a request: Standard by default, Expanded with ?format=expanded. */
+function view(req) {
+  const format = req.query.format === 'expanded' ? 'expanded' : 'standard';
+  const ix = db[format] ?? { decks: [], byKey: new Map(), byName: new Map(), cards: new Map(), jpPrints: new Map(), sourceNames: new Set() };
+  const sources = Object.fromEntries(Object.entries(db.sources ?? {}).filter(([k]) => ix.sourceNames.has(k)));
+  return { ...ix, format, sources, updatedAt: db.updatedAt, byId: db.byId };
 }
 
 function coverOf(deck) {
@@ -202,14 +220,17 @@ app.use('/api', async (_req, _res, next) => {
   next();
 });
 
-app.get('/api/meta', (_req, res) => {
-  const archetypes = archetypeStats(db.decks);
+app.get('/api/meta', (req, res) => {
+  const ix = view(req);
+  const archetypes = archetypeStats(ix.decks);
   res.json({
-    updatedAt: db.updatedAt,
-    sources: db.sources,
-    totalDecks: db.decks.length,
+    updatedAt: ix.updatedAt,
+    sources: ix.sources,
+    totalDecks: ix.decks.length,
+    format: ix.format,
+    expandedDecks: db.expanded?.decks.length ?? 0,
     totalArchetypes: archetypes.size,
-    totalCards: db.cards.size,
+    totalCards: ix.cards.size,
     scraper: scraperStatus(),
   });
 });
@@ -224,7 +245,8 @@ function filterByDate(list, from, to) {
 }
 
 app.get('/api/archetypes', (req, res) => {
-  let decks = filterByDate(db.decks, req.query.from, req.query.to);
+  const ix = view(req);
+  let decks = filterByDate(ix.decks, req.query.from, req.query.to);
   if (req.query.source) decks = decks.filter((d) => d.source === req.query.source);
   const list = [...archetypeStats(decks).values()]
     .map((a) => ({ ...a, sources: [...a.sources] }))
@@ -233,10 +255,11 @@ app.get('/api/archetypes', (req, res) => {
 });
 
 app.get('/api/decks', (req, res) => {
+  const ix = view(req);
   const { source, archetype, q } = req.query;
   const limit = Math.min(Number(req.query.limit ?? 48), 200);
   const offset = Number(req.query.offset ?? 0);
-  let list = filterByDate(db.decks, req.query.from, req.query.to);
+  let list = filterByDate(ix.decks, req.query.from, req.query.to);
   if (source) list = list.filter((d) => d.source === source);
   if (archetype) list = list.filter((d) => d.archetypeKey === archetype);
   else if (req.query.family) list = list.filter((d) => d.familyKey === req.query.family);
@@ -271,7 +294,8 @@ app.get('/api/decks', (req, res) => {
 });
 
 app.get('/api/decks/:id', (req, res) => {
-  const deck = db.byId.get(req.params.id);
+  const ix = view(req);
+  const deck = ix.byId.get(req.params.id);
   if (!deck) return res.status(404).json({ error: 'Deck not found' });
   res.json({ ...summary(deck), cards: deck.cards, environment: deck.environment ?? null, articleUrl: deck.articleUrl ?? null, tournamentUrl: deck.tournamentUrl ?? null, shop: deck.shop ?? null, preview: deck.preview ?? null });
 });
@@ -287,20 +311,21 @@ const publicCard = (c) =>
  * name = every version with that name (fallback only).
  */
 app.get('/api/usage', (req, res) => {
+  const ix = view(req);
   let keys = [].concat(req.query.key ?? []).map(String).filter(Boolean);
   const names = [].concat(req.query.name ?? []).map(String).filter(Boolean);
-  for (const n of names) keys.push(...(db.byName.get(normName(n)) ?? [cardKey(n)]));
+  for (const n of names) keys.push(...(ix.byName.get(normName(n)) ?? [cardKey(n)]));
   keys = [...new Set(keys)];
   if (!keys.length) return res.status(400).json({ error: 'Missing key or name parameter' });
 
   const hits = new Map(); // deckId -> { deck, copies }
   for (const k of keys)
-    for (const h of db.byKey.get(k) ?? []) {
+    for (const h of ix.byKey.get(k) ?? []) {
       const prev = hits.get(h.deck.id);
       hits.set(h.deck.id, prev ? { deck: h.deck, copies: prev.copies + h.copies } : h);
     }
 
-  const totals = archetypeStats(db.decks);
+  const totals = archetypeStats(ix.decks);
   const groups = new Map();
   for (const { deck, copies } of hits.values()) {
     let g = groups.get(deck.archetypeKey);
@@ -336,16 +361,16 @@ app.get('/api/usage', (req, res) => {
   // other versions with the same name but different text (e.g. another "Moltres")
   const nameKeys = new Set(keys.map((k) => normName(k.split('|')[0])));
   const variants = [...nameKeys]
-    .flatMap((nk) => [...(db.byName.get(nk) ?? [])])
+    .flatMap((nk) => [...(ix.byName.get(nk) ?? [])])
     .filter((k) => !keys.includes(k))
-    .map((k) => publicCard(db.cards.get(k)))
+    .map((k) => publicCard(ix.cards.get(k)))
     .sort((a, b) => b.decks - a.decks);
 
   // no matches: suggest cards with similar names
   let suggestions = [];
   if (!hits.size && !variants.length) {
     const words = normName(keys[0].split('|')[0]).split(' ').filter((w) => w.length > 2 && !['ex', 'the'].includes(w));
-    suggestions = [...db.cards.values()]
+    suggestions = [...ix.cards.values()]
       .filter((c) => words.some((w) => normName(c.name).includes(w)))
       .sort((a, b) => b.decks - a.decks)
       .slice(0, 12)
@@ -354,12 +379,13 @@ app.get('/api/usage', (req, res) => {
 
   res.json({
     keys,
-    card: publicCard(keys.map((k) => db.cards.get(k)).find(Boolean)),
-    totalDecks: db.decks.length,
+    card: publicCard(keys.map((k) => ix.cards.get(k)).find(Boolean)),
+    totalDecks: ix.decks.length,
     matches: hits.size,
     archetypes,
     decks,
-    partners: findPartners(keys, nameKeys, [...hits.values()].map((h) => h.deck)),
+    partners: findPartners(ix, keys, nameKeys, [...hits.values()].map((h) => h.deck)),
+    format: ix.format,
     variants,
     suggestions,
   });
@@ -376,9 +402,9 @@ const BASIC_ENERGY = /^(grass|fire|water|lightning|psychic|fighting|darkness|met
  * the overall meta. Staples (Boss's Orders, Ultra Ball, Poké Pad, Fezandipiti ex…), basic Energy and other
  * versions of the same card are excluded. Order: inclusion × log(lift).
  */
-function findPartners(keys, nameKeys, decks, limit = 6) {
+function findPartners(ix, keys, nameKeys, decks, limit = 6) {
   if (decks.length < 3) return [];
-  const total = db.decks.length;
+  const total = ix.decks.length;
   const co = new Map();
   for (const deck of decks) {
     const seen = new Set(deck.cards.map((c) => c.key ?? cardKey(c.name)));
@@ -386,9 +412,9 @@ function findPartners(keys, nameKeys, decks, limit = 6) {
   }
   return [...co.entries()]
     .map(([k, n]) => {
-      const info = db.cards.get(k);
+      const info = ix.cards.get(k);
       const rate = n / decks.length;
-      const base = (db.byKey.get(k)?.length ?? n) / total;
+      const base = (ix.byKey.get(k)?.length ?? n) / total;
       return { info, rate, base, lift: rate / base };
     })
     .filter(
@@ -407,7 +433,8 @@ function findPartners(keys, nameKeys, decks, limit = 6) {
 
 /** (Translated) sheet of a card only released in Japan, from its Japanese print in the decks. */
 app.get('/api/jpcard', async (req, res) => {
-  const print = db.jpPrints.get(String(req.query.key ?? ''));
+  const key = String(req.query.key ?? '');
+  const print = db.standard?.jpPrints.get(key) ?? db.expanded?.jpPrints.get(key);
   if (!print) return res.status(404).json({ error: 'No Japanese print' });
   try {
     res.json(await fetchJpCard(print));
@@ -417,8 +444,9 @@ app.get('/api/jpcard', async (req, res) => {
 });
 
 /** Every distinct card present in decks (sorted by number of lists). */
-app.get('/api/cards', (_req, res) => {
-  res.json([...db.cards.values()].sort((a, b) => b.decks - a.decks).map(publicCard));
+app.get('/api/cards', (req, res) => {
+  const ix = view(req);
+  res.json([...ix.cards.values()].sort((a, b) => b.decks - a.decks).map(publicCard));
 });
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Route not found' }));

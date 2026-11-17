@@ -53,3 +53,48 @@ export async function getMoves({ set, number, lang = 'en' }) {
   memo.set(url, p);
   return p;
 }
+
+const TCGDEX_EN = 'https://api.tcgdex.net/v2/en';
+const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+const idOf = (m) => [...new Set((m.attacks.length ? m.attacks : m.abilities).map(norm))].sort().join('|');
+
+/**
+ * Old Japanese prints (Black & White / XY, played in Expanded) are not in Limitless' Japanese card database.
+ * Their English version is looked up on TCGdex in the English sets of the same era and number (± 1, since the
+ * English releases merge and shift the Japanese ones). Only an unambiguous match is used: a single identity
+ * (name + attacks) among the candidates, or the print with the same number in the matching set.
+ * @returns {Promise<{attacks: string[], abilities: string[]}|null>}
+ */
+export async function getMovesOldJp({ name, set, number }) {
+  const m = String(set ?? '').match(/^(BW|XY)(\d+)/i);
+  if (!m || !name) return null;
+  const era = m[1].toLowerCase();
+  const n = Number(m[2]);
+  const ids = [n, n - 1, n + 1].filter((i) => i > 0).map((i) => `${era}${i}`);
+  const key = `old:${ids[0]}:${norm(name)}:${number}`;
+  if (memo.has(key)) return memo.get(key);
+  const p = (async () => {
+    const found = [];
+    for (const id of ids) {
+      let setData;
+      try {
+        setData = JSON.parse(await getText(`${TCGDEX_EN}/sets/${id}`, { ttlHours: Infinity }));
+      } catch {
+        continue;
+      }
+      for (const c of setData.cards ?? []) {
+        if (norm(c.name) !== norm(name)) continue;
+        try {
+          const card = JSON.parse(await getText(`${TCGDEX_EN}/cards/${encodeURIComponent(c.id)}`, { ttlHours: Infinity }));
+          const moves = { attacks: (card.attacks ?? []).map((a) => a.name), abilities: (card.abilities ?? []).map((a) => a.name) };
+          if (moves.attacks.length || moves.abilities.length) found.push({ moves, sameNumber: id === ids[0] && Number(c.localId) === Number(number) });
+        } catch {}
+      }
+    }
+    const identities = new Set(found.map((f) => idOf(f.moves)));
+    if (identities.size === 1) return found[0].moves;
+    return found.find((f) => f.sameNumber)?.moves ?? null;
+  })();
+  memo.set(key, p);
+  return p;
+}

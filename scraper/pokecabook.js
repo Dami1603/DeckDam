@@ -278,7 +278,31 @@ function articleArchetype(archetypeJp, deckCards) {
 
 /** Fills untranslated cards with the translation of another print with the same Japanese name. */
 // Cards Limitless does not have in its Japanese database
-const MANUAL_TRANSLATIONS = [['スクランブルスイッチ', 'Scramble Switch']];
+// Cards with no English translation on the Japanese card sheets (mostly Black & White / XY prints played in Expanded)
+const MANUAL_TRANSLATIONS = [
+  ['スクランブルスイッチ', 'Scramble Switch'],
+  ['じてんしゃ', 'Bicycle'],
+  ['ダウジングマシン', 'Dowsing Machine'],
+  ['アクロマ', 'Colress'],
+  ['ポケギア3.0', 'Pokégear 3.0'],
+  ['ロケット団の工作', "Team Rocket's Handiwork"],
+  ['タチワキシティジム', 'Virbank City Gym'],
+  ['ホウオウEX', 'Ho-Oh-EX'],
+  ['アンノーン', 'Unown'],
+  ['欲張りダイス', 'Greedy Dice'],
+  ['タマタマ', 'Exeggcute'],
+  ['ミロカロス', 'Milotic'],
+  ['退化スプレー', 'Devolution Spray'],
+  ['ミカルゲ', 'Spiritomb'],
+  ['ラフレシア', 'Vileplume'],
+  ['ラクライ', 'Electrike'],
+  ['トロピカルビーチ', 'Tropical Beach'],
+  ['マーイーカ', 'Inkay'],
+  ['エリートトレーナー', 'Ace Trainer'],
+  ['アオギリの切り札', "Archie's Ace in the Hole"],
+  ['ジバコイル', 'Magnezone'],
+  ['いのちのしずく', 'Life Dew'],
+];
 
 export function fillMissingTranslations(decks) {
   const dict = new Map(MANUAL_TRANSLATIONS);
@@ -443,5 +467,149 @@ export async function scrapePokecabook({
   const fixed = fillMissingTranslations(decks);
   const missing = new Set(decks.flatMap((d) => d.cards.filter((c) => !c.translated).map((c) => c.jpName)));
   log(`[pokecabook] translations completed by name: ${fixed}; untranslated: ${missing.size}${missing.size ? ' (' + [...missing].join(', ') + ')' : ''}`);
+  return decks;
+}
+
+// ---------------------------------------------------------------- Expanded ("エクストラ")
+// Winner decks of the official "Extra Battle Day" events: https://pokecabook.com/archives/category/tournament/extra
+// Each article covers a format period; inside, an h2 per archetype followed by its official deck codes.
+const EXPANDED_CATEGORY = `${BASE}/archives/category/tournament/extra`;
+
+async function getExpandedArticles(max) {
+  const html = await getText(EXPANDED_CATEGORY, { ttlHours: 12 });
+  const $ = cheerio.load(html);
+  const out = [];
+  $('a.entry-card-wrap').each((_, a) => {
+    const href = $(a).attr('href');
+    const id = href?.match(/\/archives\/(\d+)/)?.[1];
+    if (!id || out.some((x) => x.id === id)) return;
+    out.push({ id, url: `${BASE}/archives/${id}`, title: $(a).attr('title') ?? '' });
+  });
+  return out.slice(0, max);
+}
+
+async function getExpandedArticleDecks(article) {
+  const html = await getText(article.url, { ttlHours: 6 });
+  const $ = cheerio.load(html);
+  const modified = $('meta[property="article:modified_time"]').attr('content') ?? html.match(/"dateModified":"([^"]+)"/)?.[1] ?? null;
+  const entries = [];
+  let heading = null;
+  $('.entry-content')
+    .find('h2, h3, figure')
+    .each((_, el) => {
+      if (el.tagName !== 'figure') {
+        heading = $(el).text().replace(/\s+/g, ' ').trim();
+        return;
+      }
+      const m = $(el).find('a[href*="pokemon-card.com/deck/"]').attr('href')?.match(DECK_RE);
+      if (!m || !heading || entries.some((e) => e.code === m[1])) return;
+      entries.push({ code: m[1], archetypeJp: heading, preview: $(el).find('img').attr('src') ?? null });
+    });
+  return { entries, date: modified ? modified.slice(0, 10) : null };
+}
+
+/** Code -> translated cards (same as the Standard flow). */
+async function expandedDeckCards(code) {
+  const raw = await getOfficialDeck(code);
+  const cards = [];
+  for (const c of raw) {
+    const t = await translateCard({ id: c.jpId, name: c.jpFullName ?? c.jpName, alt: c.jpName });
+    const enImage = t.intl ? limitlessImage(t.intl.set, t.intl.number, 'en') : null;
+    const jpImage = t.set ? limitlessImage(t.set, t.number, 'jp') : null;
+    cards.push({
+      name: t.en ?? c.jpName,
+      jpName: c.jpName,
+      translated: Boolean(t.en),
+      count: c.count,
+      section: c.section,
+      set: t.set,
+      number: t.number,
+      enSet: t.intl?.set ?? null,
+      enNumber: t.intl?.number ?? null,
+      image: enImage ?? jpImage ?? c.officialImage,
+    });
+  }
+  return cards;
+}
+
+export async function scrapePokecabookExpanded({
+  maxArticles = Number(process.env.POKECABOOK_EXPANDED_ARTICLES ?? 2),
+  decksPerArchetype = Number(process.env.POKECABOOK_EXPANDED_DECKS ?? 8),
+  log = console.log,
+} = {}) {
+  const articles = await getExpandedArticles(maxArticles);
+  log(`[pokecabook-expanded] ${articles.length} articles (${EXPANDED_CATEGORY})`);
+  const decks = [];
+  const seen = new Set();
+  for (const article of articles) {
+    let data;
+    try {
+      data = await getExpandedArticleDecks(article);
+    } catch (e) {
+      log(`[pokecabook-expanded]  ✗ ${article.title}: ${e.message}`);
+      continue;
+    }
+    // group by archetype heading, keeping the first N decks of each
+    const groups = new Map();
+    for (const e of data.entries) {
+      if (seen.has(e.code)) continue;
+      if (!groups.has(e.archetypeJp)) groups.set(e.archetypeJp, []);
+      if (groups.get(e.archetypeJp).length < decksPerArchetype) groups.get(e.archetypeJp).push(e);
+    }
+    const isCL = /チャンピオンズリーグ|【CL】/.test(article.title);
+    const environment = article.title.match(/【([^】]*環境)】/)?.[1] ?? null;
+    let count = 0;
+    for (const [archetypeJp, entries] of groups) {
+      entries.forEach((e) => seen.add(e.code));
+      const built = (
+        await mapLimit(entries, 2, async (e) => {
+          try {
+            return { e, cards: await expandedDeckCards(e.code) };
+          } catch (err) {
+            log(`[pokecabook-expanded]  ✗ deck ${e.code}: ${err.message}`);
+            return null;
+          }
+        })
+      ).filter(Boolean);
+      if (!built.length) continue;
+      const shared = articleArchetype(archetypeJp, built.map((b) => b.cards));
+      for (const b of built) {
+        const archetype = shared ?? translateArchetype(archetypeJp, b.cards).name;
+        decks.push({
+          id: `pcbx-${b.e.code}`,
+          source: 'pokecabook-expanded',
+          format: 'expanded',
+          archetype,
+          archetypeJp,
+          archetypeId: `pcbx-${slug(archetype)}`,
+          archetypeShare: null,
+          icons: [],
+          title: archetype,
+          player: null,
+          placement: isCL ? null : '1st',
+          event: isCL ? 'Champions League (Expanded)' : 'Expanded Battle Day',
+          environment,
+          date: data.date,
+          url: `https://www.pokemon-card.com/deck/confirm.html/deckID/${b.e.code}`,
+          articleUrl: article.url,
+          preview: b.e.preview,
+          cards: b.cards,
+        });
+        count++;
+      }
+      await saveTranslations();
+    }
+    log(`[pokecabook-expanded] ${article.title}: ${count} decks`);
+  }
+  await saveTranslations();
+  fillMissingTranslations(decks);
+  // archetypes named after a card that was only translated afterwards (e.g. "ラフレシア" -> "Vileplume")
+  const manual = new Map(MANUAL_TRANSLATIONS);
+  for (const d of decks) {
+    const en = manual.get(d.archetype);
+    if (!en) continue;
+    d.archetype = d.title = en;
+    d.archetypeId = `pcbx-${slug(en)}`;
+  }
   return decks;
 }

@@ -20,8 +20,8 @@
 
 ## Features
 
-- **Card search** across every Standard-legal card (current and recent sets), in English or Spanish, powered by
-  [TCGdex](https://tcgdex.dev).
+- **Card search** across every Standard and Expanded-legal card (Black & White onward), in English or Spanish, powered
+  by [TCGdex](https://tcgdex.dev). Expanded-only cards are tagged.
 - **Which decks it fits**: archetypes that play the card, inclusion rate in each one, average copies and every list that
   uses it.
 - **Exact card identity**: two cards with the same name but different attacks (e.g. several "Moltres") are counted
@@ -32,9 +32,11 @@
 - **Japan-only cards**: cards already played in Japan but not released in English yet, with their text translated.
 - **Expansions**: every Standard-legal set with its logo and release date; open one to see all its cards and how many
   competitive lists play each (sortable by card number or most played).
+- **Expanded**: a separate gallery of winning Expanded lists from the official Japanese Expanded events, and a
+  Standard / Expanded switch on every card page.
 - **Deck gallery** with filters by source, date range and archetype family, sorting by rarity and Limitless-style
   Pokémon sprites.
-- **Automatic updates** every 12 hours from four sources, **English / Spanish** interface, **light / dark** mode, mobile
+- **Automatic updates** every 12 hours from five sources, **English / Spanish** interface, **light / dark** mode, mobile
   friendly and basic SEO.
 
 ## Screenshots
@@ -46,6 +48,8 @@
 | ![Deck dialog with the full list](docs/screenshots/deck.png) | ![Light mode card view](docs/screenshots/light.png) |
 | **Expansions** | **Expansion cards by usage** |
 | ![Standard-legal expansions](docs/screenshots/expansions.png) | ![Twilight Masquerade cards sorted by most played](docs/screenshots/expansion.png) |
+| **Expanded gallery** | **Card view in Expanded** |
+| ![Expanded deck gallery](docs/screenshots/expanded.png) | ![Unown (Ancient Origins) played in 16 Expanded lists](docs/screenshots/expanded-card.png) |
 | **Spanish interface** | **Mobile** |
 | ![Home page in Spanish](docs/screenshots/spanish.png) | <img src="docs/screenshots/mobile.png" alt="Mobile card view" width="300" /> |
 
@@ -57,6 +61,7 @@
 | [Limitless City League JP](https://limitlesstcg.com/tournaments/jp) | Japanese tournaments of the last 14 days and their top 8 lists, already translated to English. The archetype comes from the list icons. |
 | [Pokedata](https://www.pokedata.ovh/standings) | Official Play! Pokémon tournaments (Masters) since the start of the current format, top 64 with records. Archetypes are **classified** by comparing each list with the known ones ([scraper/classify.js](scraper/classify.js)). |
 | [Pokecabook](https://pokecabook.com/archives/1417) | Japanese meta: the archetype indexes ([1417](https://pokecabook.com/archives/1417), [6132](https://pokecabook.com/archives/6132)) and the daily Gym Battle winners ([27265](https://pokecabook.com/archives/27265)). Official deck codes are read from pokemon-card.com and every card is translated to English through Limitless' Japanese card database. |
+| [Pokecabook Expanded](https://pokecabook.com/archives/category/tournament/extra) | **Expanded** format: the latest Japanese Expanded event reports (Battle Days, Champions League) and the decks in each, read and translated the same way. |
 
 Cards and card text come from [TCGdex](https://tcgdex.dev) (free, no API key). Japan-only cards use the translated
 Limitless card sheet ([jpcard.js](jpcard.js)).
@@ -152,8 +157,8 @@ runs two scrapes at once. `npm run scrape` can be run at any time; the server pi
 
 | Command / variable | What it does | Default |
 |---|---|---|
-| `npm run scrape:limitless` / `scrape:limitless-jp` / `scrape:pokecabook` / `scrape:pokedata` | Updates a single source and keeps the other active ones | — |
-| `SOURCES` | Active sources, comma separated (the rest are removed from the data) | `limitless,limitless-jp,pokecabook,pokedata` |
+| `npm run scrape:limitless` / `scrape:limitless-jp` / `scrape:pokecabook` / `scrape:pokedata` / `scrape:expanded` | Updates a single source and keeps the other active ones | — |
+| `SOURCES` | Active sources, comma separated (the rest are removed from the data) | `limitless,limitless-jp,pokecabook,pokedata,pokecabook-expanded` |
 | `LIMITLESS_ARCHETYPES` | Limitless archetypes to read | 30 |
 | `LIMITLESS_LISTS` | Lists per archetype | 6 |
 | `LIMITLESS_JP_DAYS` | Days of Japanese tournaments to read | 14 |
@@ -166,6 +171,8 @@ runs two scrapes at once. `npm run scrape` can be run at any time; the server pi
 | `POKECABOOK_ARTICLES` | Archetypes to read from the indexes | 200 (all) |
 | `POKECABOOK_DECKS` | Decks per archetype | 6 |
 | `POKECABOOK_ENV` | Format section to use (auto-detected) | automatic |
+| `POKECABOOK_EXPANDED_ARTICLES` | Latest Expanded event reports to read | 2 |
+| `POKECABOOK_EXPANDED_DECKS` | Decks per archetype in each Expanded report | 8 |
 | `COMPANION_MAX_GLOBAL` / `COMPANION_MIN_PAIRS` | Companion sprite filters | 0.3 / 2 |
 | `SCRAPE_DELAY_MS` | Pause between requests to the same site | 400 |
 | `SCRAPE_INTERVAL_HOURS` | How often the local server updates (0 = never) | 12 |
@@ -178,6 +185,7 @@ forever; deck indexes are refreshed every 12 h.
 | Endpoint | Description |
 |---|---|
 | `GET /api/meta` | Totals, sources and last update |
+| `?format=expanded` | Accepted by every endpoint below (except `/api/jpcard`) to use the Expanded decks instead of Standard |
 | `GET /api/usage?key=dragapult%20ex%7Cjet%20headbutt%7Cphantom%20dive` | Archetypes, lists and partners of that exact card, plus other versions with the same name |
 | `GET /api/decks?source=&archetype=&family=&q=&from=&to=&sort=&limit=&offset=` | Deck gallery (`from`/`to`: YYYY-MM-DD; `sort`: `rare` or `popular`) |
 | `GET /api/decks/:id` | Full deck |

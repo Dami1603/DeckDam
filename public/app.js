@@ -61,7 +61,7 @@ function timeAgo(iso) {
 
 const pct = (x) => `${Math.round(x * 100)}%`;
 const usd = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
-const SOURCE_LABEL = { limitless: 'Limitless', 'limitless-jp': 'City League JP', pokecabook: 'Pokecabook', pokedata: 'Pokedata' };
+const SOURCE_LABEL = { limitless: 'Limitless', 'limitless-jp': 'City League JP', pokecabook: 'Pokecabook', pokedata: 'Pokedata', 'pokecabook-expanded': 'Pokecabook' };
 const srcBadge = (s) => `<span class="src ${esc(s)}">${esc(SOURCE_LABEL[s] ?? s)}</span>`;
 
 const imgTag = (src, alt, { fallback, cls = '' } = {}) =>
@@ -140,11 +140,13 @@ const state = {
 const cardLangNow = () => getLang();
 
 /** Cards that appear in decks, by exact identity and by name. */
-async function loadUsedCards() {
-  if (state.used) return state.used;
+async function loadUsedCards(format = 'standard') {
+  state.usedByFormat ??= {};
+  if (state.usedByFormat[format]) return state.usedByFormat[format];
+  if (format === 'standard' && state.used) return state.used;
   let list = [];
   try {
-    list = await getJSON('/api/cards');
+    list = await getJSON(format === 'expanded' ? '/api/cards?format=expanded' : '/api/cards');
   } catch {}
   const byKey = new Map(list.map((c) => [c.key, c]));
   const byName = new Map();
@@ -153,8 +155,10 @@ async function loadUsedCards() {
     if (!byName.has(nk)) byName.set(nk, []);
     byName.get(nk).push(c);
   }
-  state.used = { list, byKey, byName };
-  return state.used;
+  const used = { list, byKey, byName };
+  state.usedByFormat[format] = used;
+  if (format === 'standard') state.used = used;
+  return used;
 }
 
 /** TCGdex sets in chronological order, without Pokémon TCG Pocket (series "tcgp"). */
@@ -230,6 +234,7 @@ async function loadMeta() {
       loadMeta.wasRunning = false;
       cache.clear();
       state.used = null;
+      state.usedByFormat = {};
       toast(t('toast.updated'));
       router();
     }
@@ -293,6 +298,7 @@ const routes = [
   [/^\/k\/(.+)$/, (m, p, alive) => viewCard({ key: decodeURIComponent(m[1]) }, p, alive)],
   [/^\/(?:name|nombre)\/(.+)$/, (m) => redirectByName(decodeURIComponent(m[1]))],
   [/^\/(?:decks|mazos)$/, viewDecks],
+  [/^\/expanded$/, (m, p, alive) => viewDecks(m, p, alive, 'expanded')],
   [/^\/sets$/, viewSetList],
   [/^\/sets\/([^/]+)$/, (m, p, alive) => viewSet(decodeURIComponent(m[1]), p, alive)],
 ];
@@ -308,7 +314,7 @@ async function router() {
   const { path, params } = parseHash();
   const token = ++renderToken;
   document.querySelectorAll('[data-nav]').forEach((a) => {
-    const section = /^\/(decks|mazos)/.test(path) ? 'decks' : /^\/sets/.test(path) ? 'sets' : 'search';
+    const section = /^\/(decks|mazos)/.test(path) ? 'decks' : /^\/expanded/.test(path) ? 'expanded' : /^\/sets/.test(path) ? 'sets' : 'search';
     a.classList.toggle('active', a.dataset.nav === section);
   });
   if (dialog.open) dialog.close();
@@ -489,9 +495,9 @@ async function doSearch(rawQ, alive) {
 
   const lang = cardLangNow();
   try {
-    const [cards, sets, used] = await Promise.all([
+    const [cards, sets, used, usedExp, stdList] = await Promise.all([
       Promise.all([
-        getJSON(`${TCGDEX}/${lang}/cards?name=${encodeURIComponent(q)}&legal.standard=true&pagination:itemsPerPage=150`),
+        getJSON(`${TCGDEX}/${lang}/cards?name=${encodeURIComponent(q)}&legal.expanded=true&pagination:itemsPerPage=200`),
         // + cards from legal sets that TCGdex does not flag yet (see STANDARD_EXTRA_SETS)
         ...STANDARD_EXTRA_SETS.map((setId) =>
           getJSON(`${TCGDEX}/${lang}/cards?name=${encodeURIComponent(q)}&set.id=${setId}`).catch(() => []),
@@ -502,13 +508,17 @@ async function doSearch(rawQ, alive) {
       }),
       loadSets(lang),
       loadUsedCards(),
+      loadUsedCards('expanded'),
+      getJSON(`${TCGDEX}/${lang}/cards?name=${encodeURIComponent(q)}&legal.standard=true&pagination:itemsPerPage=200`).catch(() => []),
     ]);
     if (!alive() || state.search.q !== q) return;
+    const stdIds = new Set(stdList.map((c) => c.id));
     const rows = cards
       .filter((c) => !isPocket(c, sets))
       .map((c) => {
         const set = sets.get(setIdOf(c));
-        return { ...c, setName: set?.name ?? setIdOf(c), setOrder: set?.order ?? -1, used: null };
+        const standard = stdIds.has(c.id) || STANDARD_EXTRA_SETS.includes(setIdOf(c));
+        return { ...c, setName: set?.name ?? setIdOf(c), setOrder: set?.order ?? -1, standard, used: null, usedExp: null };
       });
 
     await withFallbackImages(rows);
@@ -517,7 +527,7 @@ async function doSearch(rawQ, alive) {
     // Exact badge: for cards whose name is played, their attacks are fetched and the full
     // identity is compared (a "Moltres" with other attacks is a different card).
     if (lang === 'en') {
-      const candidates = rows.filter((r) => used.byName.has(normName(r.name))).slice(0, 60);
+      const candidates = rows.filter((r) => used.byName.has(normName(r.name)) || usedExp.byName.has(normName(r.name))).slice(0, 80);
       const details = await fetchDetails('en', candidates.map((r) => r.id));
       if (!alive() || state.search.q !== q) return;
       for (const r of candidates) {
@@ -525,11 +535,14 @@ async function doSearch(rawQ, alive) {
         if (!d) continue;
         r.key = tcgdexKey(d);
         r.used = used.byKey.get(r.key) ?? null;
+        r.usedExp = usedExp.byKey.get(r.key) ?? null;
       }
     }
     rows.sort(
       (a, b) =>
         (b.used?.decks ?? 0) - (a.used?.decks ?? 0) ||
+        (b.usedExp?.decks ?? 0) - (a.usedExp?.decks ?? 0) ||
+        Number(b.standard) - Number(a.standard) ||
         Number(Boolean(b.image || b._img)) - Number(Boolean(a.image || a._img)) ||
         b.setOrder - a.setOrder,
     );
@@ -587,8 +600,8 @@ function renderResults(rows) {
           (c) => `
         <button class="tcg-card" data-id="${esc(c.id)}" title="${esc(c.name)} — ${esc(c.setName)}">
           <div class="img-wrap">${imgTag(tcgImg(c), c.name)}</div>
-          ${c.used ? `<span class="badge-used">${t('search.inLists', { n: c.used.decks })}</span>` : ''}
-          <div class="meta"><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.setName)} · #${esc(c.localId)}</div></div>
+          ${c.used ? `<span class="badge-used">${t('search.inLists', { n: c.used.decks })}</span>` : c.usedExp ? `<span class="badge-used exp">${t('search.inExpanded', { n: c.usedExp.decks })}</span>` : ''}
+          <div class="meta"><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.setName)} · #${esc(c.localId)}${c.standard ? '' : ` <span class="fmt-tag">${t('tag.expanded')}</span>`}</div></div>
         </button>`,
         )
         .join('')}
@@ -652,13 +665,17 @@ async function viewCard({ lang, id, key }, _params, alive) {
     return;
   }
 
-  let usage;
-  try {
-    usage = await getJSON(`/api/usage?key=${encodeURIComponent(key)}`);
-  } catch {
-    usage = { keys: [key], card: null, matches: 0, totalDecks: 0, archetypes: [], decks: [], variants: [], suggestions: [] };
-  }
+  const emptyUsage = (format) => ({ keys: [key], card: null, matches: 0, totalDecks: 0, archetypes: [], decks: [], variants: [], suggestions: [], partners: [], format });
+  const [usageStd, usageExp] = await Promise.all([
+    getJSON(`/api/usage?key=${encodeURIComponent(key)}`).catch(() => emptyUsage('standard')),
+    getJSON(`/api/usage?key=${encodeURIComponent(key)}&format=expanded`).catch(() => emptyUsage('expanded')),
+  ]);
   if (!alive()) return;
+  const usages = { standard: usageStd, expanded: usageExp };
+  // ?format=expanded, or Expanded when the card is only played there
+  const wanted = _params.get('format');
+  let usage = usages[wanted] ?? (usageStd.matches || !usageExp.matches ? usageStd : usageExp);
+  if (!usage.card) usage = { ...usage, card: usageStd.card ?? usageExp.card };
 
   if (!id) {
     enCard = await findPrint(usage.card?.name ?? nameOfKey(key), key);
@@ -680,7 +697,7 @@ async function viewCard({ lang, id, key }, _params, alive) {
     else await withFallbackImages([card]);
     if (!alive()) return;
   }
-  renderCardDetail({ card, enCard, cardLang, key, usage });
+  renderCardDetail({ card, enCard, cardLang, key, usage, usages });
 }
 
 function legalTag(card) {
@@ -689,7 +706,8 @@ function legalTag(card) {
   }
   if (!card?.legal) return '';
   const ok = isStandardLegal(card);
-  return `<span class="tag ${ok ? 'ok' : 'no'}">${ok ? t('legal.yes') : t('legal.no')}</span>`;
+  const exp = ok || Boolean(card.legal.expanded);
+  return `<span class="tag ${ok ? 'ok' : 'no'}">${ok ? t('legal.yes') : t('legal.no')}</span><span class="tag ${exp ? 'ok' : 'no'}">${exp ? t('legal.expYes') : t('legal.expNo')}</span>`;
 }
 
 /** TCGplayer price (USD) per variant, with a link to the product. */
@@ -724,7 +742,7 @@ function renderPrice(card) {
     </div>`;
 }
 
-function renderCardDetail({ card, enCard, cardLang, key, usage }) {
+function renderCardDetail({ card, enCard, cardLang, key, usage, usages }) {
   const displayName = card?.name ?? usage.card?.name ?? nameOfKey(key);
   setMeta(t('seo.card', { name: displayName }), t('seo.cardDesc', { name: displayName, n: usage.matches, a: usage.archetypes.length }));
   const enName = enCard?.name ?? usage.card?.name ?? displayName;
@@ -852,6 +870,7 @@ function renderCardDetail({ card, enCard, cardLang, key, usage }) {
       </aside>
 
       <section>
+        ${usages ? `<div class="seg fmt-tabs" role="tablist" aria-label="Format">${['standard', 'expanded'].map((fm) => `<button type="button" role="tab" data-fmt="${fm}" aria-pressed="${usage.format === fm}" aria-selected="${usage.format === fm}">${t(`fmt.${fm}`)} <small>${usages[fm].matches}</small></button>`).join('')}</div>` : ''}
         <div class="stats">
           <div class="stat accent"><div class="label">${t('stat.appears')}</div><div class="value">${usage.matches} <small>${t('stat.of', { n: usage.totalDecks })}</small></div></div>
           <div class="stat"><div class="label">${t('stat.archetypes')}</div><div class="value">${usage.archetypes.length}</div></div>
@@ -863,6 +882,14 @@ function renderCardDetail({ card, enCard, cardLang, key, usage }) {
     </div>`;
 
   bindBack();
+  app.querySelectorAll('[data-fmt]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (b.dataset.fmt === usage.format) return;
+      setQuery({ format: b.dataset.fmt === 'expanded' ? 'expanded' : '' });
+      const next = usages[b.dataset.fmt];
+      renderCardDetail({ card, enCard, cardLang, key, usage: { ...next, card: next.card ?? usage.card }, usages });
+    }),
+  );
   app.querySelectorAll('.chip[data-key], .variant[data-key], .partner[data-key]').forEach((b) => b.addEventListener('click', () => (location.hash = keyHash(b.dataset.key))));
   if (!usage.matches) return;
 
@@ -1339,9 +1366,11 @@ async function viewSet(id, params, alive) {
 }
 
 // ---------------------------------------------------------------- view: gallery
-async function viewDecks(_m, params, alive) {
-  setMeta(t('seo.gallery'));
+async function viewDecks(_m, params, alive, format = 'standard') {
+  const isExp = format === 'expanded';
+  setMeta(t(isExp ? 'seo.expanded' : 'seo.gallery'));
   if (!state.meta) await loadMeta(); // the available sources define the filters
+  const meta = isExp ? await getJSON('/api/meta?format=expanded', { useCache: false }).catch(() => null) : state.meta;
   if (!alive()) return;
   const f = {
     source: params.get('source') ?? '',
@@ -1365,14 +1394,14 @@ async function viewDecks(_m, params, alive) {
   app.innerHTML = `
     <div class="section-head" style="margin-top:8px">
       <div>
-        <h2 style="font-size:30px">${t('gallery.title')}</h2>
-        <p>${t('gallery.text')}</p>
+        <h2 style="font-size:30px">${t(isExp ? 'expanded.title' : 'gallery.title')}</h2>
+        <p>${t(isExp ? 'expanded.text' : 'gallery.text')}</p>
       </div>
     </div>
     <div class="toolbar">
       <div class="seg" role="group" aria-label="${esc(t('gallery.source'))}">
         <button type="button" data-src="" aria-pressed="${!f.source}">${t('gallery.all')}</button>
-        ${Object.keys(state.meta?.sources ?? { limitless: 1 })
+        ${Object.keys(meta?.sources ?? { limitless: 1 })
           .map((s) => `<button type="button" data-src="${esc(s)}" aria-pressed="${f.source === s}">${esc(SOURCE_LABEL[s] ?? s)}</button>`)
           .join('')}
       </div>
@@ -1407,7 +1436,7 @@ async function viewDecks(_m, params, alive) {
   async function load(reset) {
     if (reset) offset = 0;
     setQuery({ source: f.source, family: f.family, arch: f.arch, q: f.q, from: f.from, to: f.to, sort: f.sort });
-    const qs = new URLSearchParams({ limit: LIMIT, offset, ...(f.source && { source: f.source }), ...(f.arch ? { archetype: f.arch } : f.family ? { family: f.family } : {}), ...(f.q && { q: f.q }), ...(f.from && { from: f.from }), ...(f.to && { to: f.to }), ...(f.sort && { sort: f.sort }) });
+    const qs = new URLSearchParams({ limit: LIMIT, offset, ...(f.source && { source: f.source }), ...(f.arch ? { archetype: f.arch } : f.family ? { family: f.family } : {}), ...(f.q && { q: f.q }), ...(f.from && { from: f.from }), ...(f.to && { to: f.to }), ...(f.sort && { sort: f.sort }), ...(isExp && { format: 'expanded' }) });
     let data;
     try {
       data = await getJSON(`/api/decks?${qs}`);
@@ -1419,7 +1448,7 @@ async function viewDecks(_m, params, alive) {
     if (reset) grid.innerHTML = '';
     if (!data.total) {
       grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>${t('gallery.none')}</h3><p>${
-        state.meta?.totalDecks ? t('gallery.noMatch') : t('gallery.noData')
+        meta?.totalDecks ? t('gallery.noMatch') : t('gallery.noData')
       }</p></div>`;
     } else {
       grid.insertAdjacentHTML('beforeend', data.items.map((d) => deckTile(d, { rarity: true })).join(''));
@@ -1434,7 +1463,7 @@ async function viewDecks(_m, params, alive) {
 
   async function drawArchetypes() {
     let list = [];
-    const aqs = new URLSearchParams({ ...(f.source && { source: f.source }), ...(f.from && { from: f.from }), ...(f.to && { to: f.to }) });
+    const aqs = new URLSearchParams({ ...(f.source && { source: f.source }), ...(f.from && { from: f.from }), ...(f.to && { to: f.to }), ...(isExp && { format: 'expanded' }) });
     try {
       list = await getJSON(`/api/archetypes?${aqs}`);
     } catch {}

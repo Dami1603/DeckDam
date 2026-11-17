@@ -11,7 +11,8 @@
     "scrape:limitless": "node scraper/index.js --only=limitless",
     "scrape:pokecabook": "node scraper/index.js --only=pokecabook",
     "scrape:limitless-jp": "node scraper/index.js --only=limitless-jp",
-    "scrape:pokedata": "node scraper/index.js --only=pokedata"
+    "scrape:pokedata": "node scraper/index.js --only=pokedata",
+    "scrape:expanded": "node scraper/index.js --only=pokecabook-expanded"
   },
   "engines": {
     "node": ">=18"

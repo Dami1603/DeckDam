@@ -1,22 +1,22 @@
-// Uso:
-//   npm run scrape                          -> fuentes activas (Limitless + Limitless JP + Pokecabook + Pokedata)
+// Usage:
+//   npm run scrape                          -> active sources (Limitless + Limitless JP + Pokecabook + Pokedata + Pokecabook Expanded)
 //   npm run scrape -- --only=limitless-jp   -> a single source (the other active ones are kept)
-//   SOURCES=limitless,limitless-jp npm run scrape   -> elegir fuentes activas
+//   SOURCES=limitless,limitless-jp npm run scrape   -> choose the active sources
 // Sources that are not active are removed from data/decks.json.
-// Variables opcionales: LIMITLESS_ARCHETYPES, LIMITLESS_LISTS, LIMITLESS_JP_DAYS, LIMITLESS_JP_TOP, POKEDATA_TOP, POKEDATA_SINCE,
-//   POKECABOOK_ARTICLES, POKECABOOK_DECKS, SCRAPE_DELAY_MS
+// Optional variables: LIMITLESS_ARCHETYPES, LIMITLESS_LISTS, LIMITLESS_JP_DAYS, LIMITLESS_JP_TOP, POKEDATA_TOP, POKEDATA_SINCE,
+//   POKECABOOK_ARTICLES, POKECABOOK_DECKS, POKECABOOK_EXPANDED_ARTICLES, POKECABOOK_EXPANDED_DECKS, SCRAPE_DELAY_MS
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scrapeLimitless } from './limitless.js';
-import { scrapePokecabook } from './pokecabook.js';
+import { scrapePokecabook, scrapePokecabookExpanded } from './pokecabook.js';
 import { scrapeLimitlessJp } from './limitless-jp.js';
 import { scrapePokedata } from './pokedata.js';
 import { buildProfiles, classifyDeck } from './classify.js';
 import { addMissingSprites, addCompanionSprites } from './sprites.js';
 import { familyOfDeck } from '../family.js';
-import { getMoves } from './cardtext.js';
+import { getMoves, getMovesOldJp } from './cardtext.js';
 import { mapLimit } from './http.js';
 import { cardKey } from '../public/cardkey.js';
 import { limitlessImage } from './limitless.js';
@@ -59,9 +59,10 @@ const SCRAPERS = {
   limitless: () => scrapeLimitless(),
   'limitless-jp': () => scrapeLimitlessJp(),
   pokecabook: () => scrapePokecabook(),
+  'pokecabook-expanded': () => scrapePokecabookExpanded(),
   pokedata: () => scrapePokedata({ since: pokedataSince() }),
 };
-const DEFAULT_SOURCES = ['limitless', 'limitless-jp', 'pokecabook', 'pokedata'];
+const DEFAULT_SOURCES = ['limitless', 'limitless-jp', 'pokecabook', 'pokedata', 'pokecabook-expanded'];
 const enabled = (process.env.SOURCES ? process.env.SOURCES.split(',') : DEFAULT_SOURCES).map((s) => s.trim());
 const only = args.only ? String(args.only).split(',') : enabled;
 for (const s of only) if (!enabled.includes(s)) enabled.push(s);
@@ -186,7 +187,7 @@ await mapLimit(decks, 4, async (d) => {
       continue;
     }
     let print = null;
-    if (d.source !== 'pokecabook') print = c.set ? { set: c.set, number: c.number, lang: c.lang ?? 'en' } : null;
+    if (!d.source.startsWith('pokecabook')) print = c.set ? { set: c.set, number: c.number, lang: c.lang ?? 'en' } : null;
     else {
       const fromImg = c.image?.match(/\/tpci\/([A-Za-z0-9-]+)\/\1_(\w+?)_R_EN/);
       const enSet = c.enSet ?? fromImg?.[1];
@@ -195,13 +196,15 @@ await mapLimit(decks, 4, async (d) => {
     }
     let moves = print ? await getMoves(print) : null;
     // official tournament lists with Japanese prints (e.g. "M1S 89"): the Japanese card sheet is looked up
-    if (!moves && print?.lang === 'en' && d.source !== 'pokecabook') {
+    if (!moves && print?.lang === 'en' && !d.source.startsWith('pokecabook')) {
       moves = await getMoves({ ...print, lang: 'jp' });
       if (moves) {
         c.lang = 'jp';
         c.image = limitlessImage(c.set, c.number, 'jp');
       }
     }
+    // Black & White / XY Japanese prints (Expanded): English version of the same era on TCGdex
+    if (!moves && print?.lang === 'jp' && d.format === 'expanded') moves = await getMovesOldJp({ name: c.name, set: print.set, number: print.number });
     if (!moves) unresolved++;
     c.attacks = moves?.attacks ?? [];
     c.abilities = moves?.abilities ?? [];
