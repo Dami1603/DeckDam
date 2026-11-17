@@ -314,7 +314,7 @@ async function router() {
   const { path, params } = parseHash();
   const token = ++renderToken;
   document.querySelectorAll('[data-nav]').forEach((a) => {
-    const section = /^\/(decks|mazos)/.test(path) ? 'decks' : /^\/expanded/.test(path) ? 'expanded' : /^\/sets/.test(path) ? 'sets' : 'search';
+    const section = /^\/(decks|mazos|expanded)/.test(path) ? 'decks' : /^\/sets/.test(path) ? 'sets' : 'search';
     a.classList.toggle('active', a.dataset.nav === section);
   });
   if (dialog.open) dialog.close();

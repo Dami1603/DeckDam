@@ -32,8 +32,8 @@
 - **Japan-only cards**: cards already played in Japan but not released in English yet, with their text translated.
 - **Expansions**: every Standard-legal set with its logo and release date; open one to see all its cards and how many
   competitive lists play each (sortable by card number or most played).
-- **Expanded**: a separate gallery of winning Expanded lists from the official Japanese Expanded events, and a
-  Standard / Expanded switch on every card page.
+- **Expanded**: a Standard / Expanded switch in the deck gallery shows winning Expanded lists from the official Japanese Expanded events; every card page also has a
+  Standard / Expanded switch.
 - **Deck gallery** with filters by source, date range and archetype family, sorting by rarity and Limitless-style
   Pokémon sprites.
 - **Automatic updates** every 12 hours from five sources, **English / Spanish** interface, **light / dark** mode, mobile
