@@ -1391,10 +1391,20 @@ async function viewDecks(_m, params, alive, format = 'standard') {
     return hit ? hit[0] : 'custom';
   };
   let datePreset = presetOf();
+  const switchFormat = (fm) => {
+    if (fm === format) return;
+    const qs = new URLSearchParams(Object.entries({ from: f.from, to: f.to, sort: f.sort }).filter(([, v]) => v)).toString();
+    location.hash = `${fm === 'expanded' ? '/expanded' : '/decks'}${qs ? '?' + qs : ''}`;
+  };
   app.innerHTML = `
     <div class="section-head" style="margin-top:8px">
       <div>
-        <h2 style="font-size:30px">${t(isExp ? 'expanded.title' : 'gallery.title')}</h2>
+        <div class="title-row">
+          <h2 style="font-size:30px">${t('gallery.title')}</h2>
+          <div class="seg fmt-switch" role="group" aria-label="Format">
+            ${['standard', 'expanded'].map((fm) => `<button type="button" data-format="${fm}" aria-pressed="${format === fm}">${t(`fmt.${fm}`)}</button>`).join('')}
+          </div>
+        </div>
         <p>${t(isExp ? 'expanded.text' : 'gallery.text')}</p>
       </div>
     </div>
@@ -1554,6 +1564,7 @@ async function viewDecks(_m, params, alive, format = 'standard') {
     await drawArchetypes();
     load(true);
   };
+  app.querySelectorAll('[data-format]').forEach((b) => b.addEventListener('click', () => switchFormat(b.dataset.format)));
   app.querySelectorAll('[data-date]').forEach((b) =>
     b.addEventListener('click', () => {
       datePreset = b.dataset.date;
