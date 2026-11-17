@@ -1384,10 +1384,10 @@ async function viewDecks(_m, params, alive, format = 'standard') {
   // date shortcuts: last N days until today; "custom" shows both fields
   const isoDay = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
   const daysAgo = (n) => isoDay(new Date(Date.now() - n * 86400_000));
-  const PRESETS = [['any', 0], ['7', 7], ['30', 30], ['90', 90]];
+  const PRESETS = [['any', null], ['today', 0], ['7', 7], ['30', 30], ['90', 90]];
   const presetOf = () => {
     if (!f.from && !f.to) return 'any';
-    const hit = PRESETS.find(([, n]) => n && f.from === daysAgo(n) && !f.to);
+    const hit = PRESETS.find(([, n]) => n != null && f.from === daysAgo(n) && !f.to);
     return hit ? hit[0] : 'custom';
   };
   let datePreset = presetOf();
@@ -1563,8 +1563,8 @@ async function viewDecks(_m, params, alive, format = 'standard') {
         document.getElementById('dFrom').focus();
         return; // applied when the dates are picked
       }
-      const n = PRESETS.find(([id]) => id === datePreset)?.[1] ?? 0;
-      f.from = n ? daysAgo(n) : '';
+      const n = PRESETS.find(([id]) => id === datePreset)?.[1] ?? null;
+      f.from = n != null ? daysAgo(n) : '';
       f.to = '';
       document.getElementById('dFrom').value = f.from;
       document.getElementById('dTo').value = '';
