@@ -470,52 +470,71 @@ function renderIntro() {
   if (!el) return;
   el.innerHTML = `
     <div id="winners"></div>
+    <div id="rareWinners"></div>
     <div id="topCards"></div>
     <div class="stats" style="margin-top:12px">
       <div class="stat accent"><div class="label">${t('intro.how')}</div><div class="stat-text">${t('intro.howText')}</div></div>
       <div class="stat"><div class="label">${t('intro.lists')}</div><div class="value">${state.meta?.totalDecks ?? '—'}</div></div>
       <div class="stat"><div class="label">${t('intro.archetypes')}</div><div class="value">${state.meta?.totalArchetypes ?? '—'}</div></div>
     </div>`;
-  renderWinners(document.getElementById('winners'));
+  renderWinners(document.getElementById('winners'), undefined, 'latest');
+  renderWinners(document.getElementById('rareWinners'), undefined, 'rare');
   renderTopCarousel(document.getElementById('topCards'));
 }
 
-// ---------------------------------------------------------------- latest tournament winners
-let winnersTimer = null;
+// ---------------------------------------------------------------- latest tournament winners / new rare winners
+const winnersTimers = {};
+const WINNER_KINDS = {
+  // the 3 most recent 1st-place lists (different archetypes)
+  latest: { id: 'winners', title: 'winners.title', text: 'winners.text', query: 'placement=1st&limit=40' },
+  // the 3 most recent 1st-place lists of rare archetypes (very few lists in the meta)
+  rare: { id: 'rareWinners', title: 'rareWin.title', text: 'rareWin.text', query: 'placement=1st&rare=1&limit=40' },
+};
 
-/** The 3 most recent 1st-place lists (different archetypes), with the main card art and sprites. */
-async function renderWinners(container, format = state.winnersFormat ?? 'standard') {
+/** Winning lists with the main card art and sprites; the format switch (in "Latest winners") drives both sections. */
+async function renderWinners(container, format = state.winnersFormat ?? 'standard', kind = 'latest') {
+  const cfg = WINNER_KINDS[kind];
   state.winnersFormat = format;
   state.winnersBy ??= {};
-  let items = state.winnersBy[format];
+  const cacheKey = `${kind}:${format}`;
+  let items = state.winnersBy[cacheKey];
   if (!items) {
     try {
-      const data = await getJSON(`/api/decks?placement=1st&limit=40${format === 'expanded' ? '&format=expanded' : ''}`);
+      const data = await getJSON(`/api/decks?${cfg.query}${format === 'expanded' ? '&format=expanded' : ''}`);
       const seen = new Set();
       items = data.items.filter((d) => d.cover && !seen.has(d.archetypeKey) && seen.add(d.archetypeKey)).slice(0, 3);
-      state.winnersBy[format] = items;
+      state.winnersBy[cacheKey] = items;
     } catch {
       items = [];
     }
   }
   if (!document.body.contains(container)) return;
-  if (!items.length && format === 'standard') {
+  if (!items.length && (kind === 'rare' || format === 'standard')) {
     container.innerHTML = '';
     return;
   }
-  container.innerHTML = `
-    <section class="winners" aria-roledescription="carousel" aria-label="${esc(t('winners.title'))}">
-      <div class="carousel-head">
-        <div>
-          <h2>${t('winners.title')}</h2>
-          <p>${t('winners.text')}</p>
-        </div>
-        <div class="winners-nav">
+  const galleryHash = `#/${format === 'expanded' ? 'expanded' : 'decks'}`;
+  const nav =
+    kind === 'latest'
+      ? `<div class="winners-nav">
           <div class="seg fmt-switch" role="group" aria-label="Format">
             ${['standard', 'expanded'].map((fm) => `<button type="button" data-wfmt="${fm}" aria-pressed="${format === fm}">${t(`fmt.${fm}`)}</button>`).join('')}
           </div>
-          <a class="winners-all" href="#/${format === 'expanded' ? 'expanded' : 'decks'}">${t('winners.all')} →</a>
+          <a class="winners-all" href="${galleryHash}">${t('winners.all')} →</a>
+        </div>`
+      : `<div class="winners-nav"><a class="winners-all" href="${galleryHash}?sort=rare">${t('rareWin.all')} →</a></div>`;
+  const badge = (d) =>
+    kind === 'rare'
+      ? `<span class="win-place rare">✦ ${esc(d.archetypeTotal === 1 ? t('deck.unique') : t('deck.rare', { n: d.archetypeTotal }))}</span>`
+      : `<span class="win-place">🏆 ${esc(t('winners.first'))}</span>`;
+  container.innerHTML = `
+    <section class="winners ${kind}" aria-roledescription="carousel" aria-label="${esc(t(cfg.title))}">
+      <div class="carousel-head">
+        <div>
+          <h2>${t(cfg.title)}</h2>
+          <p>${t(cfg.text)}</p>
         </div>
+        ${nav}
       </div>
       <div class="winners-track" tabindex="0">
         ${items
@@ -526,12 +545,12 @@ async function renderWinners(container, format = state.winnersFormat ?? 'standar
           <button class="win" data-deck="${esc(d.id)}" title="${esc(d.archetype)}">
             <div class="win-art">
               ${imgTag(img.src, d.archetype, { fallback: img.fallback })}
-              <span class="win-place">🏆 ${esc(t('winners.first'))}</span>
+              ${badge(d)}
               ${srcBadge(d.source)}
             </div>
             <div class="win-body">
               <div class="win-title">${icons ? `<span class="win-icons">${icons}</span>` : ''}<span>${esc(d.archetype)}</span></div>
-              <div class="win-event">${esc(d.event ?? '')}</div>
+              <div class="win-event">${kind === 'rare' ? `🏆 ${esc(t('winners.first'))} · ` : ''}${esc(d.event ?? '')}</div>
               <div class="win-meta">${d.player ? `<span>${esc(d.player)}</span> · ` : ''}<span>${fmtDate(d.date)}</span></div>
             </div>
           </button>`;
@@ -542,7 +561,12 @@ async function renderWinners(container, format = state.winnersFormat ?? 'standar
     </section>`;
   bindDeckTiles(container);
   container.querySelectorAll('[data-wfmt]').forEach((b) =>
-    b.addEventListener('click', () => b.dataset.wfmt !== format && renderWinners(container, b.dataset.wfmt)),
+    b.addEventListener('click', () => {
+      if (b.dataset.wfmt === format) return;
+      renderWinners(container, b.dataset.wfmt, 'latest');
+      const rare = document.getElementById(WINNER_KINDS.rare.id);
+      if (rare) renderWinners(rare, b.dataset.wfmt, 'rare');
+    }),
   );
   if (!items.length) return;
 
@@ -559,15 +583,15 @@ async function renderWinners(container, format = state.winnersFormat ?? 'standar
   let paused = false;
   track.addEventListener('touchstart', () => (paused = true), { passive: true });
   track.addEventListener('touchend', () => setTimeout(() => (paused = false), 5000), { passive: true });
-  clearInterval(winnersTimer);
+  clearInterval(winnersTimers[kind]);
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  winnersTimer = setInterval(() => {
-    if (!document.body.contains(track)) return clearInterval(winnersTimer);
+  winnersTimers[kind] = setInterval(() => {
+    if (!document.body.contains(track)) return clearInterval(winnersTimers[kind]);
     if (paused || document.hidden || track.scrollWidth <= track.clientWidth + 4) return;
     const next = (current() + 1) % items.length;
     const card = track.querySelectorAll('.win')[next];
     track.scrollTo({ left: card.offsetLeft - track.offsetLeft, behavior: 'smooth' });
-  }, 4500);
+  }, kind === 'rare' ? 5200 : 4500);
 }
 
 const debouncedSearch = debounce((q, alive) => doSearch(q, alive), 350);

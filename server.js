@@ -275,6 +275,16 @@ app.get('/api/decks', (req, res) => {
         d.cards.some((c) => normName(c.name).includes(nq)),
     );
   }
+  // ?rare=1: winners of rare archetypes (few lists in the whole format), newest first; if there are not
+  // enough of them, the least played archetypes come first
+  let totals = null;
+  if (req.query.rare) {
+    totals = archetypeStats(ix.decks);
+    const count = (d) => totals.get(d.archetypeKey)?.decks ?? 0;
+    const max = Number(req.query.rareMax ?? 3);
+    const rare = list.filter((d) => count(d) <= max).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || count(a) - count(b));
+    list = new Set(rare.map((d) => d.archetypeKey)).size >= 3 ? rare : [...list].sort((a, b) => count(a) - count(b) || (b.date ?? '').localeCompare(a.date ?? ''));
+  }
   // lists per archetype within the filtered set (to sort by rarity and flag unique decks)
   const perArch = new Map();
   for (const d of list) perArch.set(d.archetypeKey, (perArch.get(d.archetypeKey) ?? 0) + 1);
@@ -290,7 +300,7 @@ app.get('/api/decks', (req, res) => {
   }
   res.json({
     total: list.length,
-    items: list.slice(offset, offset + limit).map((d) => ({ ...summary(d), archetypeLists: perArch.get(d.archetypeKey) })),
+    items: list.slice(offset, offset + limit).map((d) => ({ ...summary(d), archetypeLists: perArch.get(d.archetypeKey), ...(totals && { archetypeTotal: totals.get(d.archetypeKey)?.decks ?? 0 }) })),
   });
 });
 
