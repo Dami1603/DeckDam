@@ -235,7 +235,7 @@ async function loadMeta() {
       cache.clear();
       state.used = null;
       state.usedByFormat = {};
-      state.winners = null;
+      state.winnersBy = {};
       toast(t('toast.updated'));
       router();
     }
@@ -484,20 +484,22 @@ function renderIntro() {
 let winnersTimer = null;
 
 /** The 3 most recent 1st-place lists (different archetypes), with the main card art and sprites. */
-async function renderWinners(container) {
-  let items = state.winners;
+async function renderWinners(container, format = state.winnersFormat ?? 'standard') {
+  state.winnersFormat = format;
+  state.winnersBy ??= {};
+  let items = state.winnersBy[format];
   if (!items) {
     try {
-      const data = await getJSON('/api/decks?placement=1st&limit=40');
+      const data = await getJSON(`/api/decks?placement=1st&limit=40${format === 'expanded' ? '&format=expanded' : ''}`);
       const seen = new Set();
       items = data.items.filter((d) => d.cover && !seen.has(d.archetypeKey) && seen.add(d.archetypeKey)).slice(0, 3);
-      state.winners = items;
+      state.winnersBy[format] = items;
     } catch {
       items = [];
     }
   }
   if (!document.body.contains(container)) return;
-  if (!items.length) {
+  if (!items.length && format === 'standard') {
     container.innerHTML = '';
     return;
   }
@@ -508,7 +510,12 @@ async function renderWinners(container) {
           <h2>${t('winners.title')}</h2>
           <p>${t('winners.text')}</p>
         </div>
-        <a class="winners-all" href="#/decks">${t('winners.all')} →</a>
+        <div class="winners-nav">
+          <div class="seg fmt-switch" role="group" aria-label="Format">
+            ${['standard', 'expanded'].map((fm) => `<button type="button" data-wfmt="${fm}" aria-pressed="${format === fm}">${t(`fmt.${fm}`)}</button>`).join('')}
+          </div>
+          <a class="winners-all" href="#/${format === 'expanded' ? 'expanded' : 'decks'}">${t('winners.all')} →</a>
+        </div>
       </div>
       <div class="winners-track" tabindex="0">
         ${items
@@ -534,6 +541,10 @@ async function renderWinners(container) {
       <div class="win-dots" aria-hidden="true">${items.map((_, i) => `<span data-i="${i}"></span>`).join('')}</div>
     </section>`;
   bindDeckTiles(container);
+  container.querySelectorAll('[data-wfmt]').forEach((b) =>
+    b.addEventListener('click', () => b.dataset.wfmt !== format && renderWinners(container, b.dataset.wfmt)),
+  );
+  if (!items.length) return;
 
   // on narrow screens the 3 decks become a swipeable carousel with dots and auto-advance
   const track = container.querySelector('.winners-track');
