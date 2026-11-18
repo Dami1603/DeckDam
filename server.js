@@ -261,6 +261,7 @@ app.get('/api/decks', (req, res) => {
   const offset = Number(req.query.offset ?? 0);
   let list = filterByDate(ix.decks, req.query.from, req.query.to);
   if (source) list = list.filter((d) => d.source === source);
+  if (req.query.placement === '1st') list = list.filter((d) => /^(1st|1|winner)$/i.test(String(d.placement ?? '').trim()));
   if (archetype) list = list.filter((d) => d.archetypeKey === archetype);
   else if (req.query.family) list = list.filter((d) => d.familyKey === req.query.family);
   if (q) {

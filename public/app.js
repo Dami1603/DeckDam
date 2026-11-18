@@ -235,6 +235,7 @@ async function loadMeta() {
       cache.clear();
       state.used = null;
       state.usedByFormat = {};
+      state.winners = null;
       toast(t('toast.updated'));
       router();
     }
@@ -468,13 +469,94 @@ function renderIntro() {
   const el = document.getElementById('results');
   if (!el) return;
   el.innerHTML = `
+    <div id="winners"></div>
     <div id="topCards"></div>
     <div class="stats" style="margin-top:12px">
       <div class="stat accent"><div class="label">${t('intro.how')}</div><div class="stat-text">${t('intro.howText')}</div></div>
       <div class="stat"><div class="label">${t('intro.lists')}</div><div class="value">${state.meta?.totalDecks ?? '—'}</div></div>
       <div class="stat"><div class="label">${t('intro.archetypes')}</div><div class="value">${state.meta?.totalArchetypes ?? '—'}</div></div>
     </div>`;
+  renderWinners(document.getElementById('winners'));
   renderTopCarousel(document.getElementById('topCards'));
+}
+
+// ---------------------------------------------------------------- latest tournament winners
+let winnersTimer = null;
+
+/** The 3 most recent 1st-place lists (different archetypes), with the main card art and sprites. */
+async function renderWinners(container) {
+  let items = state.winners;
+  if (!items) {
+    try {
+      const data = await getJSON('/api/decks?placement=1st&limit=40');
+      const seen = new Set();
+      items = data.items.filter((d) => d.cover && !seen.has(d.archetypeKey) && seen.add(d.archetypeKey)).slice(0, 3);
+      state.winners = items;
+    } catch {
+      items = [];
+    }
+  }
+  if (!document.body.contains(container)) return;
+  if (!items.length) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = `
+    <section class="winners" aria-roledescription="carousel" aria-label="${esc(t('winners.title'))}">
+      <div class="carousel-head">
+        <div>
+          <h2>${t('winners.title')}</h2>
+          <p>${t('winners.text')}</p>
+        </div>
+        <a class="winners-all" href="#/decks">${t('winners.all')} →</a>
+      </div>
+      <div class="winners-track" tabindex="0">
+        ${items
+          .map((d) => {
+            const img = sharper(d.cover);
+            const icons = (d.icons ?? []).map((src) => `<img src="${esc(src)}" alt="" loading="lazy">`).join('');
+            return `
+          <button class="win" data-deck="${esc(d.id)}" title="${esc(d.archetype)}">
+            <div class="win-art">
+              ${imgTag(img.src, d.archetype, { fallback: img.fallback })}
+              <span class="win-place">🏆 ${esc(t('winners.first'))}</span>
+              ${srcBadge(d.source)}
+            </div>
+            <div class="win-body">
+              <div class="win-title">${icons ? `<span class="win-icons">${icons}</span>` : ''}<span>${esc(d.archetype)}</span></div>
+              <div class="win-event">${esc(d.event ?? '')}</div>
+              <div class="win-meta">${d.player ? `<span>${esc(d.player)}</span> · ` : ''}<span>${fmtDate(d.date)}</span></div>
+            </div>
+          </button>`;
+          })
+          .join('')}
+      </div>
+      <div class="win-dots" aria-hidden="true">${items.map((_, i) => `<span data-i="${i}"></span>`).join('')}</div>
+    </section>`;
+  bindDeckTiles(container);
+
+  // on narrow screens the 3 decks become a swipeable carousel with dots and auto-advance
+  const track = container.querySelector('.winners-track');
+  const dots = [...container.querySelectorAll('.win-dots span')];
+  const current = () => {
+    const w = track.querySelector('.win')?.getBoundingClientRect().width || 1;
+    return Math.round(track.scrollLeft / (w + 14));
+  };
+  const paint = () => dots.forEach((d, i) => d.classList.toggle('on', i === current()));
+  track.addEventListener('scroll', () => requestAnimationFrame(paint), { passive: true });
+  paint();
+  let paused = false;
+  track.addEventListener('touchstart', () => (paused = true), { passive: true });
+  track.addEventListener('touchend', () => setTimeout(() => (paused = false), 5000), { passive: true });
+  clearInterval(winnersTimer);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  winnersTimer = setInterval(() => {
+    if (!document.body.contains(track)) return clearInterval(winnersTimer);
+    if (paused || document.hidden || track.scrollWidth <= track.clientWidth + 4) return;
+    const next = (current() + 1) % items.length;
+    const card = track.querySelectorAll('.win')[next];
+    track.scrollTo({ left: card.offsetLeft - track.offsetLeft, behavior: 'smooth' });
+  }, 4500);
 }
 
 const debouncedSearch = debounce((q, alive) => doSearch(q, alive), 350);

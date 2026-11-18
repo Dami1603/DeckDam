@@ -84,7 +84,7 @@ const STRINGS = {
 
     // ---- search
     'hero.eyebrow': 'Pokémon TCG · Deck finder',
-    'hero.title': 'Which deck does <em>your card fit</em>?',
+    'hero.title': 'Which deck does <span class="l2"><em>your card fit</em>?</span>',
     'hero.text':
       'Search any Standard or Expanded card and find out which competitive archetypes from official tournaments (Limitless and Pokedata), the Japanese City League and Pokecabook play it.',
     'search.placeholder': 'e.g. Dragapult ex, Ultra Ball, Charizard…',
@@ -112,6 +112,10 @@ const STRINGS = {
     'intro.howText': '1. Search your card · 2. Pick the print · 3. See which archetypes play it and how many copies.',
     'intro.lists': 'Lists analyzed',
     'intro.archetypes': 'Archetypes',
+    'winners.title': 'Latest winners',
+    'winners.text': 'The most recent tournament-winning lists. Tap one to see the full deck.',
+    'winners.all': 'Deck gallery',
+    'winners.first': '1st',
     'carousel.title': 'Most played',
     'carousel.text': 'Cards that appear in the most lists of the current format. Tap one to see which decks it fits.',
     'carousel.aria': 'Most played cards',
@@ -293,7 +297,7 @@ const STRINGS = {
     lists: (v) => `${v.n} ${plural(v.n, 'lista', 'listas')}`,
 
     'hero.eyebrow': 'Pokémon TCG · Buscador de mazos',
-    'hero.title': '¿En qué mazo <em>encaja tu carta</em>?',
+    'hero.title': '¿En qué mazo <span class="l2"><em>encaja tu carta</em>?</span>',
     'hero.text':
       'Busca cualquier carta de Standard o Expanded y descubre qué arquetipos competitivos de torneos oficiales (Limitless y Pokedata), de la City League japonesa y de Pokecabook la juegan.',
     'search.placeholder': 'Ej: Dragapult ex, Ultra Ball, Charizard…',
@@ -320,6 +324,10 @@ const STRINGS = {
     'intro.howText': '1. Busca tu carta · 2. Elige la impresión · 3. Mira en qué arquetipos aparece y con cuántas copias.',
     'intro.lists': 'Listas analizadas',
     'intro.archetypes': 'Arquetipos',
+    'winners.title': 'Últimos ganadores',
+    'winners.text': 'Las listas que ganaron los torneos más recientes. Tocá una para ver el mazo completo.',
+    'winners.all': 'Galería de mazos',
+    'winners.first': '1°',
     'carousel.title': 'Las más jugadas',
     'carousel.text': 'Cartas presentes en más listas del formato vigente. Toca una para ver en qué mazos encaja.',
     'carousel.aria': 'Cartas más jugadas',
