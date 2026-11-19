@@ -19,7 +19,8 @@ const FOOT_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/';
 const NAME_MIN_SCORE = 0.72; // similarity between the printed name and the catalogue name to trust it
 const NAME_ONLY_SCORE = 0.85; // stricter: the name is the only clue when the number could not be read
 const HEAD_NOISE = new Set(['basic', 'stage', 'evolves', 'from', 'trainer', 'item', 'supporter', 'stadium', 'tool', 'pokemon', 'energy', 'special', 'mega']);
-const CONFIRM_AFTER = 3; // frames with the same unconfirmed reading before asking the user
+const MAX_RESULTS = 3; // possible cards shown at once
+const RESULT_FRAMES = 4; // frames a possible card stays on screen after it was last read
 const WORKER_IDLE_MS = 60_000; // the OCR engine stays loaded for a while to scan several cards in a row
 
 // Printed without a total: "SVP 045"
@@ -83,13 +84,34 @@ export function prepareRegion(source, box, region) {
   return canvas;
 }
 
-/** OCR of the bottom line and the name of the card inside `box`. Consecutive passes crop the bottom line differently. */
-export async function readFrame(worker, source, box, pass = 0) {
+/** OCR of the bottom line of the card. Consecutive passes crop it differently. */
+async function readFoot(worker, source, box, pass) {
   await worker.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: FOOT_CHARS });
-  const foot = await worker.recognize(prepareRegion(source, box, pass % 2 ? REGIONS.footLeft : REGIONS.foot));
+  const { data } = await worker.recognize(prepareRegion(source, box, pass % 2 ? REGIONS.footLeft : REGIONS.foot));
+  return data.text;
+}
+
+/** OCR of the name area of the card. */
+async function readHead(worker, source, box) {
   await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
-  const head = await worker.recognize(prepareRegion(source, box, REGIONS.head));
-  return { foot: foot.data.text, head: head.data.text };
+  const { data } = await worker.recognize(prepareRegion(source, box, REGIONS.head));
+  return data.text;
+}
+
+/**
+ * Reads one frame in two steps. The possible cards are reported as soon as the number is read;
+ * the name is read afterwards to decide whether the card can be opened without asking.
+ * @param {(cards:object[])=>void} [onPossible] called with the prints that match the number
+ * @returns {Promise<{foot:string, head:string, result:object|null}>} result is null if the catalogue is unreachable
+ */
+export async function scanFrame(worker, source, box, pass, previousHead, onPossible) {
+  const foot = await readFoot(worker, source, box, pass);
+  const quick = await findCard({ foot, head: '' }).catch(() => null);
+  const possible = quick?.status === 'match' ? [quick.card] : quick?.status === 'maybe' ? quick.cards : [];
+  if (possible.length) onPossible?.(possible);
+  const head = await readHead(worker, source, box);
+  const result = await findCard({ foot, head }, previousHead).catch(() => null);
+  return { foot, head, result };
 }
 
 // ---------------------------------------------------------------- reading the printed text
@@ -350,6 +372,7 @@ export function startScanner({ root, onCard, onClose, onSearch }) {
       </header>
       <footer class="scan-bottom">
         <p class="scan-hint" role="status" aria-live="polite"></p>
+        <div class="scan-results" hidden></div>
         <button type="button" class="scan-link" data-act="search">${esc(t('scan.byName'))}</button>
       </footer>
       <div class="scan-sheet" hidden></div>
@@ -360,15 +383,16 @@ export function startScanner({ root, onCard, onClose, onSearch }) {
   const guide = el.querySelector('.scan-guide');
   const hint = el.querySelector('.scan-hint');
   const sheet = el.querySelector('.scan-sheet');
+  const results = el.querySelector('.scan-results');
   const torchBtn = el.querySelector('[data-act="torch"]');
 
   let stopped = false;
   let stream = null;
-  let paused = false; // waiting for the user to answer the confirmation sheet
   let loopRunning = false;
-  const seen = new Map(); // unconfirmed reading -> frames in a row
-  const rejected = new Set(); // prints the user said are not the card
   let frames = 0;
+  const possible = new Map(); // card id -> { card, hits, frame }: what the number could be
+  let shown = []; // possible cards on screen
+  let touching = false; // the list does not change under the user's finger
   let previousHead = '';
 
   document.documentElement.classList.add('scan-open');
@@ -426,24 +450,37 @@ export function startScanner({ root, onCard, onClose, onSearch }) {
     readLoop();
   }
 
-  function showCandidates(cards) {
-    paused = true;
-    sheet.hidden = false;
-    sheet.innerHTML = `
-      <h2>${esc(t(cards.length > 1 ? 'scan.whichOne' : 'scan.isThis'))}</h2>
-      <div class="scan-options">
-        ${cards
-          .map(
-            (c) => `
-          <button type="button" class="scan-option" data-id="${esc(c.id)}">
-            ${c.image ? `<img src="${esc(c.image)}/low.webp" alt="" referrerpolicy="no-referrer">` : '<span class="scan-noimg"></span>'}
-            <span><b>${esc(c.name)}</b><small>${esc(c.setName)} · #${esc(c.localId)}</small></span>
-          </button>`,
-          )
-          .join('')}
-      </div>
-      <button type="button" class="btn" data-act="resume">${esc(t('scan.notThis'))}</button>`;
-    sheet._cards = cards;
+  /** Possible cards, the ones read most often first. Nothing is redrawn while the list stays the same. */
+  function renderResults() {
+    if (touching) return;
+    const cards = [...possible.values()].sort((a, b) => b.hits - a.hits).slice(0, MAX_RESULTS).map((p) => p.card);
+    if (cards.map((c) => c.id).join() === shown.map((c) => c.id).join()) return;
+    shown = cards;
+    results.hidden = !cards.length;
+    el.classList.toggle('has-results', cards.length > 0);
+    results.innerHTML = cards
+      .map(
+        (c) => `
+        <button type="button" class="scan-result" data-id="${esc(c.id)}">
+          ${c.image ? `<img src="${esc(c.image)}/low.webp" alt="" referrerpolicy="no-referrer">` : '<span class="scan-noimg"></span>'}
+          <span class="scan-result-text"><b>${esc(c.name)}</b><small>${esc(c.setName)} · #${esc(c.localId)}</small></span>
+        </button>`,
+      )
+      .join('');
+  }
+
+  function notePossible(cards) {
+    for (const card of cards) {
+      const known = possible.get(card.id);
+      possible.set(card.id, { card, hits: (known?.hits ?? 0) + (known?.frame === frames ? 0 : 1), frame: frames });
+    }
+    setHint(t('scan.possible'));
+    renderResults();
+  }
+
+  function forgetOldResults() {
+    for (const [id, p] of possible) if (frames - p.frame >= RESULT_FRAMES) possible.delete(id);
+    renderResults();
   }
 
   function openCard(card) {
@@ -463,36 +500,29 @@ export function startScanner({ root, onCard, onClose, onSearch }) {
       if (stopped) return;
       setHint(t('scan.aim'));
       while (!stopped && stream) {
-        if (paused || video.readyState < 2 || !video.videoWidth) {
+        if (video.readyState < 2 || !video.videoWidth) {
           await new Promise((r) => setTimeout(r, 200));
           continue;
         }
-        const reading = await readFrame(worker, video, frameBox(video, guide), frames);
-        if (stopped || paused || !stream) continue;
+        const { head, result } = await scanFrame(worker, video, frameBox(video, guide), frames, previousHead, (cards) => {
+          if (!stopped) notePossible(cards);
+        });
+        previousHead = head;
+        if (stopped || !stream) continue;
+        if (result?.status === 'match') {
+          openCard(result.card);
+          return;
+        }
+        if (result?.status === 'maybe') notePossible(result.cards);
         frames++;
-        const result = await findCard(reading, previousHead).catch(() => null);
-        previousHead = reading.head;
-        if (stopped || paused || !stream) continue;
+        forgetOldResults();
         if (!result) {
           setHint(t('scan.offline'));
           await new Promise((r) => setTimeout(r, 1500));
           continue;
         }
-        if (result.status === 'match' && !rejected.has(result.card.id)) {
-          openCard(result.card);
-          return;
-        }
-        if (result.status === 'maybe') {
-          const cards = result.cards.filter((c) => !rejected.has(c.id));
-          const key = cards[0]?.name ?? '';
-          const times = (seen.get(key) ?? 0) + 1;
-          seen.clear();
-          seen.set(key, times);
-          if (cards.length && times >= CONFIRM_AFTER) showCandidates(cards);
-          else setHint(t('scan.reading', { number: result.read }));
-        } else {
-          setHint(result.read ? t('scan.reading', { number: result.read }) : t(frames > 8 ? 'scan.tip' : 'scan.aim'));
-        }
+        if (possible.size) setHint(t('scan.possible'));
+        else setHint(result.read ? t('scan.reading', { number: result.read }) : t(frames > 8 ? 'scan.tip' : 'scan.aim'));
       }
     } catch (e) {
       console.error('Scanner:', e);
@@ -503,22 +533,16 @@ export function startScanner({ root, onCard, onClose, onSearch }) {
   }
 
   el.addEventListener('click', async (e) => {
-    const option = e.target.closest('.scan-option');
-    if (option) {
-      const card = sheet._cards?.find((c) => c.id === option.dataset.id);
+    const picked = e.target.closest('.scan-result');
+    if (picked) {
+      const card = shown.find((c) => c.id === picked.dataset.id);
       if (card) openCard(card);
       return;
     }
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'close') onClose();
     else if (act === 'search') onSearch();
-    else if (act === 'resume') {
-      (sheet._cards ?? []).forEach((c) => rejected.add(c.id));
-      seen.clear();
-      sheet.hidden = true;
-      paused = false;
-      setHint(t('scan.aim'));
-    } else if (act === 'retry') {
+    else if (act === 'retry') {
       el.classList.remove('is-error');
       sheet.hidden = true;
       startCamera();
@@ -531,6 +555,9 @@ export function startScanner({ root, onCard, onClose, onSearch }) {
     }
   });
 
+  results.addEventListener('pointerdown', () => (touching = true));
+  for (const type of ['pointerup', 'pointercancel']) el.addEventListener(type, () => (touching = false));
+
   // the camera is released while the app is in the background
   const onVisibility = () => {
     if (document.hidden) stopCamera();
@@ -538,6 +565,9 @@ export function startScanner({ root, onCard, onClose, onSearch }) {
   };
   document.addEventListener('visibilitychange', onVisibility);
 
+  // everything the first reading needs starts loading while the camera opens
+  loadOcr().catch(() => {});
+  physicalSets().catch(() => {});
   startCamera();
 
   return () => {
