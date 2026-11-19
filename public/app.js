@@ -302,6 +302,7 @@ const routes = [
   [/^\/expanded$/, (m, p, alive) => viewDecks(m, p, alive, 'expanded')],
   [/^\/sets$/, viewSetList],
   [/^\/sets\/([^/]+)$/, (m, p, alive) => viewSet(decodeURIComponent(m[1]), p, alive)],
+  [/^\/scan$/, viewScan],
 ];
 
 function parseHash() {
@@ -314,6 +315,8 @@ let renderToken = 0;
 async function router() {
   const { path, params } = parseHash();
   const token = ++renderToken;
+  stopScanner?.();
+  stopScanner = null;
   document.querySelectorAll('[data-nav]').forEach((a) => {
     const section = /^\/(decks|mazos|expanded)/.test(path) ? 'decks' : /^\/sets/.test(path) ? 'sets' : 'search';
     a.classList.toggle('active', a.dataset.nav === section);
@@ -340,6 +343,33 @@ function setQuery(params) {
   history.replaceState(null, '', `#${path}${qs ? '?' + qs : ''}`);
 }
 
+// ---------------------------------------------------------------- view: card scanner (rear camera)
+let stopScanner = null;
+
+/** Phones and tablets: same condition that shows the scan button in styles.css. */
+const canScan = () => matchMedia('(max-width: 720px), (hover: none) and (pointer: coarse)').matches;
+
+async function viewScan(_m, _params, alive) {
+  setMeta(t('seo.scan'));
+  app.innerHTML = '';
+  let scanner;
+  try {
+    scanner = await import('./scan.js');
+  } catch {
+    toast(t('scan.ocrFail'));
+    location.replace('#/');
+    return;
+  }
+  if (!alive()) return;
+  stopScanner = scanner.startScanner({
+    root: app,
+    // the scanner stays in the history: going back from the card scans the next one
+    onCard: (id, lang) => (location.hash = `#/card/${lang}/${encodeURIComponent(id)}`),
+    onClose: () => location.replace('#/'),
+    onSearch: () => location.replace('#/'),
+  });
+}
+
 // ---------------------------------------------------------------- view: search
 async function viewSearch(_m, params, alive) {
   const q = params.get('q') ?? state.search.q ?? '';
@@ -353,8 +383,12 @@ async function viewSearch(_m, params, alive) {
       <form class="searchbar" id="searchForm" role="search">
         <label class="field">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <input id="q" type="search" autocomplete="off" placeholder="${esc(t('search.placeholder'))}" value="${esc(q)}" aria-label="${esc(t('search.aria'))}" />
+          <input id="q" type="search" autocomplete="off" placeholder="${esc(t(canScan() ? 'search.placeholderScan' : 'search.placeholder'))}" value="${esc(q)}" aria-label="${esc(t('search.aria'))}" />
+          <a class="search-scan" href="#/scan" aria-label="${esc(t('scan.title'))}" title="${esc(t('scan.title'))}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><rect x="8.5" y="7.5" width="7" height="9" rx="1.2"/></svg>
+          </a>
         </label>
+        <a class="scan-tip" href="#/scan" tabindex="-1" aria-hidden="true">${esc(t('search.scanTip'))}</a>
       </form>
     </section>
     <div id="results"></div>
