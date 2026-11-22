@@ -774,7 +774,7 @@ async function redirectByName(name) {
 /** Finds in TCGdex the most recent print (with image, no Pocket) with the same identity. */
 async function findPrint(name, key) {
   const [list, sets] = await Promise.all([
-    getJSON(`${TCGDEX}/en/cards?name=${encodeURIComponent('eq:' + name)}`).catch(() => []),
+    getJSON(`${TCGDEX}/en/cards?name=${encodeURIComponent('eq:' + name.replace(/♢/g, '◇'))}`).catch(() => []),
     loadSets('en'),
   ]);
   const cands = list

@@ -302,6 +302,14 @@ const MANUAL_TRANSLATIONS = [
   ['アオギリの切り札', "Archie's Ace in the Hole"],
   ['ジバコイル', 'Magnezone'],
   ['いのちのしずく', 'Life Dew'],
+  // XY deck/kit prints: their card sheet only shows the era logo ("XY"), not the expansion
+  ['プラターヌ博士', 'Professor Sycamore'],
+  ['スペシャルチャージ', 'Special Charge'],
+  ['闘魂のまわし', 'Fighting Fury Belt'],
+  ['フラダリ', 'Lysandre'],
+  ['みがわりロボ（フレア団ギア）', 'Robo Substitute'],
+  ['鍛冶屋', 'Blacksmith'],
+  ['ダイブボール', 'Dive Ball'],
 ];
 
 export function fillMissingTranslations(decks) {
@@ -357,7 +365,7 @@ export async function scrapePokecabook({
       const raw = await getOfficialDeck(entry.code);
       const cards = [];
       for (const c of raw) {
-        const t = await translateCard({ id: c.jpId, name: c.jpFullName ?? c.jpName, alt: c.jpName });
+        const t = await translateCard({ id: c.jpId, name: c.jpFullName ?? c.jpName, alt: c.jpName, section: c.section });
         const enImage = t.intl ? limitlessImage(t.intl.set, t.intl.number, 'en') : null;
         const jpImage = t.set ? limitlessImage(t.set, t.number, 'jp') : null;
         cards.push({
@@ -513,7 +521,7 @@ async function expandedDeckCards(code) {
   const raw = await getOfficialDeck(code);
   const cards = [];
   for (const c of raw) {
-    const t = await translateCard({ id: c.jpId, name: c.jpFullName ?? c.jpName, alt: c.jpName });
+    const t = await translateCard({ id: c.jpId, name: c.jpFullName ?? c.jpName, alt: c.jpName, section: c.section });
     const enImage = t.intl ? limitlessImage(t.intl.set, t.intl.number, 'en') : null;
     const jpImage = t.set ? limitlessImage(t.set, t.number, 'jp') : null;
     cards.push({

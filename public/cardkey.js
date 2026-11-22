@@ -12,6 +12,7 @@ export function normName(s = '') {
     .replace(/[̀-ͯ]/g, '')
     .replace(/[’‘`´]/g, "'")
     .replace(/[‐‑–—]/g, '-')
+    .replace(/[◇◊]/g, '♢') // Prism Star: TCGdex writes "◇", Limitless "♢"
     .toLowerCase()
     .replace(/\s*\(ace spec\)\s*/g, ' ')
     .replace(/^basic\s+(\w+\s+energy)$/, '$1')
