@@ -311,6 +311,18 @@ app.get('/api/decks/:id', (req, res) => {
   res.json({ ...summary(deck), cards: deck.cards, environment: deck.environment ?? null, articleUrl: deck.articleUrl ?? null, tournamentUrl: deck.tournamentUrl ?? null, shop: deck.shop ?? null, preview: deck.preview ?? null });
 });
 
+// Card lists of several decks at once (full-deck view of the deck grids): ?ids=a,b,c
+app.get('/api/decklists', (req, res) => {
+  const { byId } = view(req);
+  const ids = String(req.query.ids ?? '').split(',').filter(Boolean).slice(0, 60);
+  const out = {};
+  for (const id of ids) {
+    const deck = byId?.get(id);
+    if (deck) out[id] = deck.cards.map((c) => ({ name: c.name, count: c.count, section: c.section, image: c.image ?? null, key: c.key ?? cardKey(c.name) }));
+  }
+  res.json(out);
+});
+
 // No copy with an English print (tpci/EN image) = card only released in Japan so far
 const isJpOnly = (c) => Boolean(c.image) && !/\/tpci\//.test(c.image);
 const publicCard = (c) =>

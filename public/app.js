@@ -993,7 +993,7 @@ function renderCardDetail({ card, enCard, cardLang, key, usage, usages }) {
       <div class="section-head"><div><h2>${t('arch.title')}</h2><p>${t('arch.text')}</p></div></div>
       <div class="arch-list" id="archList">${archHtml}</div>
       ${variantsHtml}
-      <div class="section-head"><div><h2 id="listsTitle"></h2><p>${t('lists.text')}</p></div></div>
+      <div class="section-head" id="listsHead"><div><h2 id="listsTitle"></h2><p>${t('lists.text')}</p></div>${deckViewSeg()}</div>
       <div class="deck-grid" id="deckGrid"></div>`
     : `
       <div class="empty" style="margin-top:22px">
@@ -1053,9 +1053,9 @@ function renderCardDetail({ card, enCard, cardLang, key, usage, usages }) {
     title.textContent = filter
       ? t('lists.of', { name: usage.archetypes.find((a) => a.key === filter)?.name })
       : t('lists.title', { n: list.length });
-    grid.innerHTML = list.map((d) => deckTile(d)).join('');
-    bindDeckTiles(grid, highlight);
+    showDecks(grid, list, { highlight });
   };
+  bindDeckViewSeg(document.getElementById('listsHead'), draw);
   document.querySelectorAll('#archList .arch-row').forEach((row) =>
     row.addEventListener('click', () => {
       filter = filter === row.dataset.key ? null : row.dataset.key;
@@ -1186,7 +1186,144 @@ function deckTile(d, { rarity = false } = {}) {
 }
 
 function bindDeckTiles(root, highlight = []) {
-  root.querySelectorAll('[data-deck]').forEach((b) => b.addEventListener('click', () => openDeck(b.dataset.deck, highlight)));
+  root.querySelectorAll('[data-deck]:not([data-bound])').forEach((b) => {
+    b.dataset.bound = '1';
+    b.addEventListener('click', () => openDeck(b.dataset.deck, highlight));
+  });
+}
+
+// ---------------------------------------------------------------- deck grid view: showcase / full deck
+const DECK_VIEW_KEY = 'ddpk.deckView';
+let deckView = 'cover';
+try {
+  if (localStorage.getItem(DECK_VIEW_KEY) === 'full') deckView = 'full';
+} catch {}
+
+const deckViewSeg = () => `
+  <div class="seg view-seg" role="group" aria-label="${esc(t('view.label'))}">
+    ${['cover', 'full'].map((v) => `<button type="button" data-dview="${v}" aria-pressed="${deckView === v}">${t(`view.${v}`)}</button>`).join('')}
+  </div>`;
+
+function bindDeckViewSeg(root, onChange) {
+  root.querySelectorAll('[data-dview]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (b.dataset.dview === deckView) return;
+      deckView = b.dataset.dview === 'full' ? 'full' : 'cover';
+      try {
+        localStorage.setItem(DECK_VIEW_KEY, deckView);
+      } catch {}
+      document.querySelectorAll('[data-dview]').forEach((x) => x.setAttribute('aria-pressed', x.dataset.dview === deckView));
+      onChange();
+    }),
+  );
+}
+
+/** The whole list at a glance: header + every card with its copies (like the official deck images). */
+function fullDeckTile(d, { rarity = false } = {}) {
+  const rare =
+    rarity && d.archetypeLists === 1
+      ? `<span class="rare-badge unique">${t('deck.unique')}</span>`
+      : rarity && d.archetypeLists <= 3
+      ? `<span class="rare-badge">${t('deck.rare', { n: d.archetypeLists })}</span>`
+      : '';
+  const icons = d.icons?.length ? `<span class="df-icons">${d.icons.map((src) => `<img src="${esc(src)}" alt="" loading="lazy">`).join('')}</span>` : '';
+  return `
+    <button class="deck-full" data-deck="${esc(d.id)}">
+      <div class="df-head">
+        ${icons}
+        <div class="df-title">
+          <div class="deck-arch">${esc(d.archetype)}${d.archetypeJp ? `<span class="jp">${esc(d.archetypeJp)}</span>` : ''}</div>
+          <div class="deck-meta">
+            ${d.placement ? `<span class="place">${esc(d.placement)}</span>·` : ''}
+            ${d.player ? `<span>${esc(d.player)}</span>·` : ''}
+            ${d.event ? `<span>${esc(d.event)}</span>·` : ''}
+            <span>${fmtDate(d.date)}</span>
+          </div>
+        </div>
+        <div class="df-badges">${d.copies ? `<span class="copies">×${d.copies}</span>` : rare}${srcBadge(d.source)}</div>
+      </div>
+      <div class="df-cards" data-cards="${esc(d.id)}">${'<div class="df-card skeleton"></div>'.repeat(12)}</div>
+    </button>`;
+}
+
+const decklists = new Map(); // deck id -> cards (or null if it could not be read)
+const slotHighlight = new WeakMap(); // card area -> Set of highlighted card keys
+let pendingSlots = [];
+let flushTimer = null;
+
+function paintDecklist(slot) {
+  if (!slot.isConnected) return;
+  const cards = decklists.get(slot.dataset.cards);
+  if (!cards) {
+    slot.innerHTML = `<p class="df-error">${t('deck.listError')}</p>`;
+    return;
+  }
+  const hl = slotHighlight.get(slot) ?? new Set();
+  slot.innerHTML = SECTIONS.flatMap((s) => cards.filter((c) => c.section === s))
+    .map(
+      (c) => `
+      <div class="df-card${hl.has(c.key) ? ' hl' : ''}" title="${esc(`${c.count} ${c.name}`)}">
+        ${imgTag(c.image, c.name)}
+        <span class="n">${c.count}</span>
+      </div>`,
+    )
+    .join('');
+}
+
+async function flushDecklists() {
+  const slots = pendingSlots;
+  pendingSlots = [];
+  const missing = [...new Set(slots.map((s) => s.dataset.cards))].filter((id) => !decklists.has(id));
+  for (let i = 0; i < missing.length; i += 40) {
+    const chunk = missing.slice(i, i + 40);
+    try {
+      const res = await getJSON(`/api/decklists?ids=${chunk.map(encodeURIComponent).join(',')}`);
+      for (const id of chunk) decklists.set(id, res[id] ?? null);
+    } catch {
+      for (const id of chunk) decklists.set(id, null);
+    }
+  }
+  slots.forEach(paintDecklist);
+}
+
+function queueDecklist(slot) {
+  pendingSlots.push(slot);
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(flushDecklists, 40);
+}
+
+// lists are only requested when their deck gets close to the screen (a card can be in hundreds of decks)
+const decklistObserver =
+  'IntersectionObserver' in window
+    ? new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            decklistObserver.unobserve(e.target);
+            queueDecklist(e.target);
+          }
+        },
+        { rootMargin: '900px 0px' },
+      )
+    : null;
+
+/** Draws (or appends) decks in a grid with the current view and wires them up. */
+function showDecks(grid, list, { append = false, rarity = false, highlight = [] } = {}) {
+  const full = deckView === 'full';
+  grid.classList.toggle('full', full);
+  const html = list.map((d) => (full ? fullDeckTile(d, { rarity }) : deckTile(d, { rarity }))).join('');
+  if (append) grid.insertAdjacentHTML('beforeend', html);
+  else grid.innerHTML = html;
+  bindDeckTiles(grid, highlight);
+  if (!full) return;
+  const hl = new Set(highlight);
+  grid.querySelectorAll('.df-cards[data-cards]:not([data-watch])').forEach((slot) => {
+    slot.dataset.watch = '1';
+    slotHighlight.set(slot, hl);
+    if (decklists.has(slot.dataset.cards)) paintDecklist(slot);
+    else if (decklistObserver) decklistObserver.observe(slot);
+    else queueDecklist(slot);
+  });
 }
 
 // ---------------------------------------------------------------- deck dialog
@@ -1586,13 +1723,15 @@ async function viewDecks(_m, params, alive, format = 'standard') {
     </div>
     <div class="arch-strip" id="archStrip"></div>
     <div class="arch-strip variant-strip" id="variantStrip" hidden></div>
-    <p class="count-line" id="countLine"></p>
+    <div class="list-bar" id="listBar"><p class="count-line" id="countLine"></p>${deckViewSeg()}</div>
     <div class="deck-grid" id="deckGrid">${'<div class="skeleton" style="height:210px"></div>'.repeat(8)}</div>
     <div class="center" id="more"></div>`;
 
   const grid = document.getElementById('deckGrid');
   let offset = 0;
   const LIMIT = 48;
+  let shown = []; // decks on screen, redrawn when the view changes
+  bindDeckViewSeg(document.getElementById('listBar'), () => shown.length && showDecks(grid, shown, { rarity: true }));
 
   async function load(reset) {
     if (reset) offset = 0;
@@ -1606,14 +1745,17 @@ async function viewDecks(_m, params, alive, format = 'standard') {
       return;
     }
     if (!alive()) return;
-    if (reset) grid.innerHTML = '';
+    if (reset) {
+      grid.innerHTML = '';
+      shown = [];
+    }
     if (!data.total) {
       grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>${t('gallery.none')}</h3><p>${
         meta?.totalDecks ? t('gallery.noMatch') : t('gallery.noData')
       }</p></div>`;
     } else {
-      grid.insertAdjacentHTML('beforeend', data.items.map((d) => deckTile(d, { rarity: true })).join(''));
-      bindDeckTiles(grid);
+      showDecks(grid, data.items, { append: true, rarity: true });
+      shown.push(...data.items);
     }
     offset += data.items.length;
     document.getElementById('countLine').textContent = data.total ? t('lists', { n: data.total }) : '';
